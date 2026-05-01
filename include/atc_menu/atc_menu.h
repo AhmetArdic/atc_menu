@@ -41,21 +41,26 @@ typedef enum {
  * @brief Row type. Determines how the row is rendered and which callbacks
  *        are required.
  *
- * | Type           | read     | action     | Visual                    |
- * |----------------|----------|------------|---------------------------|
- * | ATC_ROW_GROUP  | unused   | unused     | `m  MPU9250 IMU`          |
- * | ATC_ROW_VALUE  | required | optional   | `t  Temp   45.3 C   OK`   |
- * | ATC_ROW_STATE  | required | required   | `L  LED    ON`            |
- * | ATC_ROW_ACTION | unused   | required   | `1  Flash CRC`            |
+ * | Type            | read     | action     | Visual                    |
+ * |-----------------|----------|------------|---------------------------|
+ * | ATC_ROW_GROUP   | unused   | unused     | `m  MPU9250 IMU`          |
+ * | ATC_ROW_VALUE   | required | optional   | `t  Temp   45.3 C   OK`   |
+ * | ATC_ROW_STATE   | required | required   | `L  LED    ON`            |
+ * | ATC_ROW_ACTION  | unused   | required   | `1  Flash CRC`            |
+ * | ATC_ROW_SUBMENU | unused   | unused     | `i  > MPU9250 IMU`        |
  *
  * Groups may carry a `key`; pressing it bulk-refreshes the group label
  * and every row up to the next group.
+ *
+ * SUBMENU rows drill into another items table; the framework keeps a
+ * fixed-depth navigation stack and the built-in `b` key pops back.
  */
 typedef enum {
-    ATC_ROW_GROUP,  /**< Section header. Optional key bulk-refreshes the span. */
-    ATC_ROW_VALUE,  /**< Read-only scalar (sensor, voltage). */
-    ATC_ROW_STATE,  /**< Two-state output (GPIO, fan). Toggled by action. */
-    ATC_ROW_ACTION, /**< Command bound to a hotkey (test, reset). */
+    ATC_ROW_GROUP,   /**< Section header. Optional key bulk-refreshes the span. */
+    ATC_ROW_VALUE,   /**< Read-only scalar (sensor, voltage). */
+    ATC_ROW_STATE,   /**< Two-state output (GPIO, fan). Toggled by action. */
+    ATC_ROW_ACTION,  /**< Command bound to a hotkey (test, reset). */
+    ATC_ROW_SUBMENU, /**< Drills into another items table. */
 } atc_row_type_t;
 
 /**
@@ -79,13 +84,15 @@ typedef void (*atc_action_fn_t)(void);
  * Build the table as a `static const atc_menu_item_t[]` using designated
  * initializers and pass it to atc_menu_init().
  */
-typedef struct {
+typedef struct atc_menu_item {
     atc_row_type_t  type;   /**< Row kind. See ::atc_row_type_t. */
     char            key;    /**< Hotkey (printable char). 0 for groups. */
     const char     *label;  /**< Group title or row label. */
     const char     *unit;   /**< Unit string ("V", "C"). Use "" if none. */
     atc_read_fn_t   read;   /**< Reader; required for VALUE/STATE. */
     atc_action_fn_t action; /**< Action; required for STATE/ACTION. */
+    const struct atc_menu_item *submenu; /**< Sub-menu table. Required for SUBMENU. */
+    size_t          submenu_count;       /**< Sub-menu row count. Required for SUBMENU. */
 } atc_menu_item_t;
 
 /**
@@ -160,9 +167,12 @@ void atc_menu_render(void);
  * @brief Feed a received character to the menu.
  *
  * Built-in keys: 'r' refreshes the whole menu, ':' enters command mode
- * (if port.cmd is set). Any other key is matched against the table:
- * STATE/ACTION rows run their action, then the matched row is repainted
- * in place (single-line update — much smaller than a full repaint).
+ * (if port.cmd is set), 'b' pops the navigation stack one level (no-op
+ * at the root), '?' prints the full breadcrumb path via the status line
+ * (also a no-op at the root). Any other key is matched against the
+ * table: STATE/ACTION rows run their action then the matched row is
+ * repainted in place; SUBMENU rows push the current table onto the nav
+ * stack and drill into the sub-menu (full repaint).
  *
  * @param[in] k  Received character.
  */

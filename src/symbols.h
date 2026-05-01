@@ -19,6 +19,9 @@
 #define SYM_GROUP_BAR   "--"
 #define SYM_PROMPT      "> "
 #define SYM_CMD_PROMPT  ": "
+#define SYM_SUBMENU     "> "
+#define SYM_CRUMB       " > "
+#define SYM_CRUMB_ROOT  "Home"
 
 #define SYM_BOX_H       "-"
 #define SYM_BOX_V       "|"

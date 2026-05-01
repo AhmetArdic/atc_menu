@@ -4,11 +4,12 @@ UART üzerinden çalışan, tablo-driven, allocation-free C99 debug menü framew
 
 ## Özellikler
 
-- Tek soyutlama: `row` — group / value / state / action
+- Tek soyutlama: `row` — group / value / state / action / submenu
 - `static const` tablo, sıfır dinamik bellek
 - Flicker-free render (cursor-home + line-erase)
 - Port vtable: UART / USB CDC / telnet / mock — transport değişirse sadece port değişir
-- Built-in `:` komut modu + `r` refresh + printf-style status/log helper
+- Built-in `:` komut modu + `r` refresh + `b` back + `?` path + printf-style status/log helper
+- Native sub-menu: `ATC_ROW_SUBMENU` → çerçeve nav stack'ini kendi yönetir; aktif konumu görmek için `?` tam path'i status'a basar
 
 ## Dizin yapısı
 
@@ -53,16 +54,26 @@ build/examples/demo.exe COM3 9600   # optional baud override
 ```
 
 PuTTY / TeraTerm ile aynı portu varsayılan 115200 8N1 (veya verdiğin
-baud'da) aç. Hotkey'ler:
+baud'da) aç. Demo home menüde Quick view + BME280 Env satırlarını inline
+gösterir; IMU ve Power bilgisi SUBMENU'ye drill-down ile açılır. IMU
+sayfası kendi içinde Accel/Gyro/Mag sub-page'lerine ayrılır (2 derinlik).
+Sub-menüde `b` parent'a döner, `?` tam path'i status satırında basar.
+
+Home hotkey'leri:
 
 | Tuş | Etki                          |
 |-----|-------------------------------|
 | `t` | MCU temp göster               |
 | `v` | Battery voltage göster        |
+| `e` | BME280 Env grubunu yenile     |
+| `i` | IMU sayfasına geç             |
+| `p` | Power sayfasına geç           |
 | `L` | LED toggle                    |
 | `1` | Self-test çalıştır            |
 | `r` | Yenile                        |
 | `:` | Komut modu (`set temp 55.0`, `set vbat 3.10`, `set load 1800`) |
+
+Sub-menüde ek olarak `b` parent menüye döner, `?` tam path'i basar.
 
 Demo dört farklı çıktı sayısında sensör simülasyonu içerir: tek-değerli (TMP102),
 3-değerli INA219 (V/I/P), 4-değerli BME280 (T/H/P/Alt) ve 9-değerli MPU9250
@@ -96,6 +107,39 @@ basit paternle çözüyor — `examples/sensor_helpers.h` ve `examples/sensor_si
 
 Bu yardımcılar `examples/` altında, kütüphane API'sinin parçası değil:
 projenin kendi yardımcılarını eklemekte serbestsin.
+
+## Sub-menü ile satır sayısını yönetmek
+
+Sensör sayısı arttıkça tüm satırları tek ekrana sığdırmak okunaksızlaşır.
+Çözüm: `ATC_ROW_SUBMENU` row'u ile drill-down. Her satır kendi `submenu`
+pointer'ını taşır; çerçeve nav stack'ini yönetir, `b` parent'a döner,
+`?` tam path'i (`Home > MPU9250 IMU > Accelerometer`) status satırında
+basar. Header değişmez — aktif tablonun `ATC_ROW_GROUP` başlığı zaten
+"buradayım" sinyali.
+
+```c
+static const atc_menu_item_t imu_menu[] = {
+    { .type = ATC_ROW_GROUP, .label = "MPU9250 IMU" },
+    { .type = ATC_ROW_VALUE, .label = "Accel X", .unit = "g", .read = rd_ax },
+    /* ... */
+};
+
+static const atc_menu_item_t home_menu[] = {
+    { .type = ATC_ROW_VALUE,   .key = 't', .label = "MCU Temp", .unit = "C",
+      .read = rd_temp },
+    { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "MPU9250 IMU",
+      .submenu = imu_menu,
+      .submenu_count = sizeof imu_menu / sizeof imu_menu[0] },
+};
+```
+
+SUBMENU satırı `i  > MPU9250 IMU` şeklinde `> ` marker'ıyla çıkar;
+footer'a `[b] back  [?] path` eklenir. Submenu içinde başka SUBMENU
+olabilir — demo `home → MPU9250 IMU → {Accel|Gyro|Mag}` 2 derinlik
+gezinti gösterir.
+
+Stack derinliği varsayılan 4; `-DATC_MENU_STACK_DEPTH=8` ile artırılabilir.
+`b` ve `?` tuşlarını user satırına atamak yasak — init validation uyarır.
 
 ## Hızlı başlangıç
 
