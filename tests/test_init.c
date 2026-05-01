@@ -66,5 +66,55 @@ int main(void) {
     atc_menu_init(dup, 2, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "dup key");
 
+    /* SUBMENU without a submenu pointer must warn. */
+    static const atc_menu_item_t bad_sub[] = {
+        { .type = ATC_ROW_SUBMENU, .key = 's', .label = "S" },
+    };
+    mock_reset();
+    atc_menu_init(bad_sub, 1, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "WARN");
+    EXPECT_CONTAINS(mock_buffer(), "missing submenu");
+
+    /* Valid SUBMENU produces no warnings. */
+    static const atc_menu_item_t leaf[] = {
+        { .type = ATC_ROW_GROUP, .label = "Leaf" },
+    };
+    static const atc_menu_item_t good_sub[] = {
+        { .type = ATC_ROW_SUBMENU, .key = 's', .label = "S",
+          .submenu = leaf, .submenu_count = 1 },
+    };
+    mock_reset();
+    atc_menu_init(good_sub, 1, &mock_port);
+    EXPECT_NOT_CONTAINS(mock_buffer(), "WARN");
+
+    /* User row with key 'b' must warn (collides with built-in back). */
+    static const atc_menu_item_t b_collide[] = {
+        { .type = ATC_ROW_ACTION, .key = 'b', .label = "B", .action = noop },
+    };
+    mock_reset();
+    atc_menu_init(b_collide, 1, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "WARN");
+    EXPECT_CONTAINS(mock_buffer(), "built-in back");
+
+    /* Label/unit longer than their column must warn. */
+    static const atc_menu_item_t long_label[] = {
+        { .type = ATC_ROW_VALUE, .key = 't',
+          .label = "ThisLabelIsWayTooLongForTheLabelColumnToFit",
+          .unit = "C", .read = rd_ok },
+    };
+    mock_reset();
+    atc_menu_init(long_label, 1, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "WARN");
+    EXPECT_CONTAINS(mock_buffer(), "label");
+
+    static const atc_menu_item_t long_unit[] = {
+        { .type = ATC_ROW_VALUE, .key = 't', .label = "T",
+          .unit = "milligrams", .read = rd_ok },
+    };
+    mock_reset();
+    atc_menu_init(long_unit, 1, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "WARN");
+    EXPECT_CONTAINS(mock_buffer(), "unit");
+
     TEST_RESULT();
 }

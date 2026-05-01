@@ -97,5 +97,103 @@ int main(void) {
     atc_menu_handle_key('1');
     EXPECT(run_actions == 2);
 
+    /* ---------------- Sub-menu navigation ----------------- */
+
+    static const atc_menu_item_t leaf[] = {
+        { .type = ATC_ROW_GROUP, .label = "Leaf" },
+        { .type = ATC_ROW_VALUE, .label = "X", .unit = "C", .read = rd_temp },
+    };
+    static const atc_menu_item_t mid[] = {
+        { .type = ATC_ROW_GROUP,   .label = "Mid" },
+        { .type = ATC_ROW_SUBMENU, .key = 'd', .label = "Deeper",
+          .submenu = leaf, .submenu_count = sizeof leaf / sizeof leaf[0] },
+    };
+    static const atc_menu_item_t root[] = {
+        { .type = ATC_ROW_GROUP,   .label = "Root" },
+        { .type = ATC_ROW_SUBMENU, .key = 'm', .label = "Mid menu",
+          .submenu = mid, .submenu_count = sizeof mid / sizeof mid[0] },
+        { .type = ATC_ROW_ACTION,  .key = '1', .label = "Run",
+          .action = act_run },
+    };
+
+    mock_reset();
+    atc_menu_init(root, sizeof root / sizeof root[0], &mock_port);
+    mock_reset();
+    atc_menu_handle_key('m');
+    EXPECT_CONTAINS(mock_buffer(), "Mid");
+    EXPECT_CONTAINS(mock_buffer(), "Deeper");
+    EXPECT_NOT_CONTAINS(mock_buffer(), "Home > ");
+
+    mock_reset();
+    atc_menu_handle_key('?');
+    EXPECT_CONTAINS(mock_buffer(), "Home > Mid menu");
+
+    mock_reset();
+    atc_menu_handle_key('b');
+    EXPECT_CONTAINS(mock_buffer(), "Root");
+    EXPECT_NOT_CONTAINS(mock_buffer(), "Home > ");
+
+    /* Built-in keys are no-ops at the root. */
+    mock_reset();
+    atc_menu_handle_key('b');
+    EXPECT(mock_len() == 0);
+    atc_menu_handle_key('?');
+    EXPECT(mock_len() == 0);
+
+    /* Two-deep nesting: '?' chains all labels. */
+    mock_reset();
+    atc_menu_handle_key('m');
+    atc_menu_handle_key('d');
+    EXPECT_CONTAINS(mock_buffer(), "Leaf");
+    mock_reset();
+    atc_menu_handle_key('?');
+    EXPECT_CONTAINS(mock_buffer(), "Home > Mid menu > Deeper");
+
+    mock_reset();
+    atc_menu_handle_key('b');
+    EXPECT_CONTAINS(mock_buffer(), "Mid");
+    EXPECT_CONTAINS(mock_buffer(), "Deeper");
+    mock_reset();
+    atc_menu_handle_key('b');
+    EXPECT_CONTAINS(mock_buffer(), "Root");
+
+    /* Old-table hotkey (post-pop) dispatches into the now-active root. */
+    atc_menu_handle_key('1');
+    EXPECT(run_actions == 3);
+
+    /* Stack overflow: 5 levels with depth 4 must refuse the 5th. */
+    static const atc_menu_item_t lvl5[] = {
+        { .type = ATC_ROW_GROUP, .label = "L5" },
+    };
+    static const atc_menu_item_t lvl4[] = {
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L5",
+          .submenu = lvl5, .submenu_count = sizeof lvl5 / sizeof lvl5[0] },
+    };
+    static const atc_menu_item_t lvl3[] = {
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L4",
+          .submenu = lvl4, .submenu_count = sizeof lvl4 / sizeof lvl4[0] },
+    };
+    static const atc_menu_item_t lvl2[] = {
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L3",
+          .submenu = lvl3, .submenu_count = sizeof lvl3 / sizeof lvl3[0] },
+    };
+    static const atc_menu_item_t lvl1[] = {
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L2",
+          .submenu = lvl2, .submenu_count = sizeof lvl2 / sizeof lvl2[0] },
+    };
+    static const atc_menu_item_t lvl0[] = {
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L1",
+          .submenu = lvl1, .submenu_count = sizeof lvl1 / sizeof lvl1[0] },
+    };
+    atc_menu_init(lvl0, sizeof lvl0 / sizeof lvl0[0], &mock_port);
+    atc_menu_handle_key('n');   /* depth 1 */
+    atc_menu_handle_key('n');   /* depth 2 */
+    atc_menu_handle_key('n');   /* depth 3 */
+    atc_menu_handle_key('n');   /* depth 4 */
+    mock_reset();
+    atc_menu_handle_key('n');   /* depth 5: refused */
+    EXPECT_CONTAINS(mock_buffer(), "WARN");
+    EXPECT_CONTAINS(mock_buffer(), "stack full");
+
     TEST_RESULT();
 }

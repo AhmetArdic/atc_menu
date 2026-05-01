@@ -7,8 +7,12 @@
  * @file demo.c
  * @brief End-to-end demo that drives the menu over a Windows serial port.
  *
- * Simulated backends for four sensors of varying output count, to show
- * how the menu scales with row density:
+ * Demonstrates the native sub-menu pattern: a small home menu shows
+ * top-line metrics and acts as a launcher; SUBMENU rows drill into
+ * sensor-specific views. The framework keeps the navigation stack and
+ * the built-in 'b' key pops back — no thunks or manual back rows here.
+ *
+ * Simulated backends for sensors of varying output count:
  *
  *   - TMP102-like temp sensor : 1 value
  *   - INA219 power monitor    : 3 values  (Vbus, I, P)
@@ -25,10 +29,19 @@
  * Open the same port in an ANSI-capable serial terminal (PuTTY,
  * TeraTerm, screen, ...) at the matching baud (default 115200) 8N1.
  *
- * ## Hotkeys
+ * ## Hotkeys (home)
  *   t   show MCU temp          L   toggle LED
- *   m   refresh IMU group      1   run self-test
- *   r   repaint the menu       :   enter command mode
+ *   v   show battery voltage   1   run self-test
+ *   e   refresh BME280 group   i   open IMU view
+ *   p   open Power view        r   repaint        :   command mode
+ *
+ * ## Hotkeys (IMU launcher — sub-menu, depth 1)
+ *   a   accelerometer page     g   gyroscope page
+ *   m   magnetometer page      b   back to home
+ *
+ * ## Hotkeys (any sub-menu)
+ *   b   back to parent         ?   show full path
+ *   r   repaint                :   command mode
  *
  * ## Command mode
  *   set temp <C>          override MCU temp
@@ -47,6 +60,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define ARR_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
 static HANDLE g_serial = INVALID_HANDLE_VALUE;
 static size_t g_tx_bytes;
@@ -129,41 +144,67 @@ static const atc_menu_info_t demo_info = {
     .build   = __DATE__,
 };
 
-static const atc_menu_item_t items[] = {
-    { .type = ATC_ROW_GROUP,  .label = "Sensors", .unit = "" },
-    { .type = ATC_ROW_VALUE,  .key = 't', .label = "MCU Temp",   .unit = "C",
+static const atc_menu_item_t imu_accel_menu[] = {
+    { .type = ATC_ROW_GROUP, .label = "MPU9250 Accelerometer" },
+    { .type = ATC_ROW_VALUE, .label = "Accel X", .unit = "g", .read = rd_mpu_ax },
+    { .type = ATC_ROW_VALUE, .label = "Accel Y", .unit = "g", .read = rd_mpu_ay },
+    { .type = ATC_ROW_VALUE, .label = "Accel Z", .unit = "g", .read = rd_mpu_az },
+};
+
+static const atc_menu_item_t imu_gyro_menu[] = {
+    { .type = ATC_ROW_GROUP, .label = "MPU9250 Gyroscope" },
+    { .type = ATC_ROW_VALUE, .label = "Gyro X", .unit = "dps", .read = rd_mpu_gx },
+    { .type = ATC_ROW_VALUE, .label = "Gyro Y", .unit = "dps", .read = rd_mpu_gy },
+    { .type = ATC_ROW_VALUE, .label = "Gyro Z", .unit = "dps", .read = rd_mpu_gz },
+};
+
+static const atc_menu_item_t imu_mag_menu[] = {
+    { .type = ATC_ROW_GROUP, .label = "MPU9250 Magnetometer" },
+    { .type = ATC_ROW_VALUE, .label = "Mag X", .unit = "uT", .read = rd_mpu_mx },
+    { .type = ATC_ROW_VALUE, .label = "Mag Y", .unit = "uT", .read = rd_mpu_my },
+    { .type = ATC_ROW_VALUE, .label = "Mag Z", .unit = "uT", .read = rd_mpu_mz },
+};
+
+static const atc_menu_item_t imu_menu[] = {
+    { .type = ATC_ROW_GROUP,   .label = "MPU9250 IMU 9-DoF" },
+    { .type = ATC_ROW_SUBMENU, .key = 'a', .label = "Accelerometer",
+      .submenu = imu_accel_menu, .submenu_count = ARR_LEN(imu_accel_menu) },
+    { .type = ATC_ROW_SUBMENU, .key = 'g', .label = "Gyroscope",
+      .submenu = imu_gyro_menu,  .submenu_count = ARR_LEN(imu_gyro_menu) },
+    { .type = ATC_ROW_SUBMENU, .key = 'm', .label = "Magnetometer",
+      .submenu = imu_mag_menu,   .submenu_count = ARR_LEN(imu_mag_menu) },
+};
+
+static const atc_menu_item_t power_menu[] = {
+    { .type = ATC_ROW_GROUP, .label = "INA219 Power" },
+    { .type = ATC_ROW_VALUE, .label = "Bus V",   .unit = "V",  .read = rd_ina_v },
+    { .type = ATC_ROW_VALUE, .label = "Current", .unit = "mA", .read = rd_ina_i },
+    { .type = ATC_ROW_VALUE, .label = "Power",   .unit = "mW", .read = rd_ina_p },
+};
+
+static const atc_menu_item_t home_menu[] = {
+    { .type = ATC_ROW_GROUP,   .label = "Quick view" },
+    { .type = ATC_ROW_VALUE,   .key = 't', .label = "MCU Temp", .unit = "C",
       .read = rd_temp },
-    { .type = ATC_ROW_VALUE,  .key = 'v', .label = "Battery",    .unit = "V",
+    { .type = ATC_ROW_VALUE,   .key = 'v', .label = "Battery",  .unit = "V",
       .read = rd_vbat },
 
-    { .type = ATC_ROW_GROUP,  .label = "INA219 Power", .unit = "" },
-    { .type = ATC_ROW_VALUE,  .label = "Bus V",       .unit = "V",   .read = rd_ina_v },
-    { .type = ATC_ROW_VALUE,  .label = "Current",     .unit = "mA",  .read = rd_ina_i },
-    { .type = ATC_ROW_VALUE,  .label = "Power",       .unit = "mW",  .read = rd_ina_p },
+    { .type = ATC_ROW_GROUP,   .key = 'e', .label = "BME280 Env" },
+    { .type = ATC_ROW_VALUE,   .label = "Temperature", .unit = "C",   .read = rd_bme_t },
+    { .type = ATC_ROW_VALUE,   .label = "Humidity",    .unit = "%",   .read = rd_bme_h },
+    { .type = ATC_ROW_VALUE,   .label = "Pressure",    .unit = "hPa", .read = rd_bme_p },
+    { .type = ATC_ROW_VALUE,   .label = "Altitude",    .unit = "m",   .read = rd_bme_a },
 
-    { .type = ATC_ROW_GROUP,  .label = "BME280 Env",  .unit = "" },
-    { .type = ATC_ROW_VALUE,  .label = "Temperature", .unit = "C",   .read = rd_bme_t },
-    { .type = ATC_ROW_VALUE,  .label = "Humidity",    .unit = "%",   .read = rd_bme_h },
-    { .type = ATC_ROW_VALUE,  .label = "Pressure",    .unit = "hPa", .read = rd_bme_p },
-    { .type = ATC_ROW_VALUE,  .label = "Altitude",    .unit = "m",   .read = rd_bme_a },
+    { .type = ATC_ROW_GROUP,   .label = "Drill into" },
+    { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "MPU9250 IMU",
+      .submenu = imu_menu,   .submenu_count = ARR_LEN(imu_menu) },
+    { .type = ATC_ROW_SUBMENU, .key = 'p', .label = "INA219 Power",
+      .submenu = power_menu, .submenu_count = ARR_LEN(power_menu) },
 
-    { .type = ATC_ROW_GROUP,  .key = 'm', .label = "MPU9250 IMU", .unit = "" },
-    { .type = ATC_ROW_VALUE,  .label = "Accel X",     .unit = "g",   .read = rd_mpu_ax },
-    { .type = ATC_ROW_VALUE,  .label = "Accel Y",     .unit = "g",   .read = rd_mpu_ay },
-    { .type = ATC_ROW_VALUE,  .label = "Accel Z",     .unit = "g",   .read = rd_mpu_az },
-    { .type = ATC_ROW_VALUE,  .label = "Gyro X",      .unit = "dps", .read = rd_mpu_gx },
-    { .type = ATC_ROW_VALUE,  .label = "Gyro Y",      .unit = "dps", .read = rd_mpu_gy },
-    { .type = ATC_ROW_VALUE,  .label = "Gyro Z",      .unit = "dps", .read = rd_mpu_gz },
-    { .type = ATC_ROW_VALUE,  .label = "Mag X",       .unit = "uT",  .read = rd_mpu_mx },
-    { .type = ATC_ROW_VALUE,  .label = "Mag Y",       .unit = "uT",  .read = rd_mpu_my },
-    { .type = ATC_ROW_VALUE,  .label = "Mag Z",       .unit = "uT",  .read = rd_mpu_mz },
-
-    { .type = ATC_ROW_GROUP,  .label = "Outputs", .unit = "" },
-    { .type = ATC_ROW_STATE,  .key = 'L', .label = "LED",       .unit = "",
+    { .type = ATC_ROW_GROUP,   .label = "Control" },
+    { .type = ATC_ROW_STATE,   .key = 'L', .label = "LED",
       .read = rd_led, .action = act_toggle_led },
-
-    { .type = ATC_ROW_GROUP,  .label = "Tests",   .unit = "" },
-    { .type = ATC_ROW_ACTION, .key = '1', .label = "Self test", .unit = "",
+    { .type = ATC_ROW_ACTION,  .key = '1', .label = "Self test",
       .action = act_self_test },
 };
 
@@ -234,7 +275,7 @@ int main(int argc, char **argv) {
     sensor_sim_init();
 
     atc_menu_set_info(&demo_info);
-    atc_menu_init(items, sizeof items / sizeof items[0], &serial_port);
+    atc_menu_init(home_menu, ARR_LEN(home_menu), &serial_port);
     atc_menu_render();
     fprintf(stderr, "initial render: %zu B\n", g_tx_bytes);
 
