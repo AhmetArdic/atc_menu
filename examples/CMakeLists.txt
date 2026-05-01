@@ -1,0 +1,5 @@
+if(WIN32)
+    add_executable(demo demo.c sensor_sim.c)
+    target_include_directories(demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(demo PRIVATE atc_menu)
+endif()
