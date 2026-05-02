@@ -18,6 +18,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,19 +42,32 @@ typedef enum {
  * @brief Row type. Determines how the row is rendered and which callbacks
  *        are required.
  *
- * | Type            | read     | action     | Visual                    |
- * |-----------------|----------|------------|---------------------------|
- * | ATC_ROW_GROUP   | unused   | unused     | `m  MPU9250 IMU`          |
- * | ATC_ROW_VALUE   | required | optional   | `t  Temp   45.3 C   OK`   |
- * | ATC_ROW_STATE   | required | required   | `L  LED    ON`            |
- * | ATC_ROW_ACTION  | unused   | required   | `1  Flash CRC`            |
- * | ATC_ROW_SUBMENU | unused   | unused     | `i  > MPU9250 IMU`        |
+ * | Type            | read     | action     | Visual                          |
+ * |-----------------|----------|------------|---------------------------------|
+ * | ATC_ROW_GROUP   | unused   | unused     | `m  MPU9250 IMU`                |
+ * | ATC_ROW_VALUE   | required | optional   | `t  Temp   45.3 C   OK`         |
+ * | ATC_ROW_STATE   | required | required   | `L  LED    ON`                  |
+ * | ATC_ROW_ACTION  | unused   | required   | `1  Flash CRC`                  |
+ * | ATC_ROW_SUBMENU | unused   | unused     | `i  > MPU9250 IMU`              |
+ * | ATC_ROW_BAR     | required | unused     | `b  Battery [######..] 78 % OK` |
+ * | ATC_ROW_CHOICE  | optional | unused     | `p  Mode    [ NORMAL ]      OK` |
+ * | ATC_ROW_INPUT   | required | unused     | `d  PWM Duty       50 %     OK` |
  *
  * Groups may carry a `key`; pressing it bulk-refreshes the group label
  * and every row up to the next group.
  *
  * SUBMENU rows drill into another items table; the framework keeps a
  * fixed-depth navigation stack and the built-in `b` key pops back.
+ *
+ * BAR renders an 8-cell horizontal level bar in the value column; the
+ * reader returns an ASCII percent (0..100) and a status that drives color.
+ *
+ * CHOICE cycles through a fixed array of strings on key press; the
+ * current selection is owned by the application via a uint8_t pointer.
+ *
+ * INPUT lets the user enter a runtime value (int/float/hex/string)
+ * with on-screen editing. Pressing the row's key opens an input prompt;
+ * Enter commits via @ref atc_input_fn_t after validation; Esc cancels.
  */
 typedef enum {
     ATC_ROW_GROUP,   /**< Section header. Optional key bulk-refreshes the span. */
@@ -61,7 +75,20 @@ typedef enum {
     ATC_ROW_STATE,   /**< Two-state output (GPIO, fan). Toggled by action. */
     ATC_ROW_ACTION,  /**< Command bound to a hotkey (test, reset). */
     ATC_ROW_SUBMENU, /**< Drills into another items table. */
+    ATC_ROW_BAR,     /**< Horizontal level bar (0..100 %). */
+    ATC_ROW_CHOICE,  /**< N-state cycle (e.g., ECO/NORMAL/TURBO). */
+    ATC_ROW_INPUT,   /**< Runtime parameter entry (int/float/hex/string). */
 } atc_row_type_t;
+
+/**
+ * @brief Data type accepted by an INPUT row's editor.
+ */
+typedef enum {
+    ATC_INPUT_INT,   /**< Signed decimal integer; bounded by input_min/input_max. */
+    ATC_INPUT_FLOAT, /**< Decimal fraction; bounded by input_min/input_max. */
+    ATC_INPUT_HEX,   /**< Hex digits, optional 0x prefix; bounded by input_min/input_max. */
+    ATC_INPUT_STR,   /**< Printable ASCII string; bounded by buffer length. */
+} atc_input_type_t;
 
 /**
  * @brief Reader callback. Formats the current value into @p buf and reports
@@ -79,21 +106,60 @@ typedef void (*atc_read_fn_t)(char *buf, size_t n, atc_status_t *st);
 typedef void (*atc_action_fn_t)(void);
 
 /**
+ * @brief Commit callback for INPUT rows. Invoked when the user submits an
+ *        edited value via Enter and the framework's range/format check passes.
+ *
+ * @param[in] s  Null-terminated string the user entered (e.g., "50", "0x1F").
+ * @return true to accept and exit input mode; false to keep the editor open.
+ */
+typedef bool (*atc_input_fn_t)(const char *s);
+
+struct atc_menu_table; /* fwd decl */
+
+/**
  * @brief A single menu row. Tables of these drive the entire UI.
  *
  * Build the table as a `static const atc_menu_item_t[]` using designated
- * initializers and pass it to atc_menu_init().
+ * initializers, wrap it in an ::atc_menu_table_t, and pass it to
+ * atc_menu_init().
  */
 typedef struct atc_menu_item {
     atc_row_type_t  type;   /**< Row kind. See ::atc_row_type_t. */
     char            key;    /**< Hotkey (printable char). 0 for groups. */
     const char     *label;  /**< Group title or row label. */
     const char     *unit;   /**< Unit string ("V", "C"). Use "" if none. */
-    atc_read_fn_t   read;   /**< Reader; required for VALUE/STATE. */
+    atc_read_fn_t   read;   /**< Reader; required for VALUE/STATE/BAR/INPUT. */
     atc_action_fn_t action; /**< Action; required for STATE/ACTION. */
-    const struct atc_menu_item *submenu; /**< Sub-menu table. Required for SUBMENU. */
-    size_t          submenu_count;       /**< Sub-menu row count. Required for SUBMENU. */
+    const struct atc_menu_table *submenu; /**< Sub-menu table. Required for SUBMENU. */
+
+    /* CHOICE-specific (used when type == ATC_ROW_CHOICE; ignored otherwise). */
+    const char    **choices;       /**< Array of choice strings (each <= 6 chars). */
+    uint8_t         choice_count;  /**< Number of entries in @ref choices. */
+    uint8_t        *choice_idx;    /**< Pointer to current selection (mutable, app-owned). */
+
+    /* INPUT-specific (used when type == ATC_ROW_INPUT; ignored otherwise). */
+    atc_input_type_t input_type;   /**< Editor data type. */
+    int32_t          input_min;    /**< Lower bound (INT/HEX). 0 if unused. */
+    int32_t          input_max;    /**< Upper bound (INT/HEX). 0 if unused. */
+    atc_input_fn_t   input_commit; /**< Validated-buffer commit callback. */
 } atc_menu_item_t;
+
+/**
+ * @brief A menu screen: row table plus optional static notes.
+ *
+ * One table per screen. Notes (if any) are rendered as dim text inside
+ * the box, between the last row and the bottom border, separated by a
+ * dotted line.
+ *
+ * Define as `static const`; the struct and its referenced arrays must
+ * outlive the menu.
+ */
+typedef struct atc_menu_table {
+    const atc_menu_item_t *items;      /**< Row table. */
+    size_t                 count;      /**< Number of rows in @ref items. */
+    const char *const     *notes;      /**< Optional. Array of note strings. */
+    size_t                 note_count; /**< 0 to omit the notes block. */
+} atc_menu_table_t;
 
 /**
  * @brief Project metadata shown in the menu header.
@@ -132,16 +198,15 @@ typedef struct {
 } atc_menu_port_t;
 
 /**
- * @brief Initialize the menu with a row table and a transport port.
+ * @brief Initialize the menu with a root table and a transport port.
  *
  * Validates the table at startup and emits warnings via atc_menu_printf()
  * for duplicate hotkeys and missing required callbacks.
  *
- * @param[in] items  Pointer to the row table (must outlive the menu).
- * @param[in] count  Number of entries in @p items.
+ * @param[in] table  Root menu table (must outlive the menu).
  * @param[in] port   Port vtable (must outlive the menu).
  */
-void atc_menu_init(const atc_menu_item_t *items, size_t count,
+void atc_menu_init(const atc_menu_table_t *table,
                    const atc_menu_port_t *port);
 
 /**
@@ -172,7 +237,9 @@ void atc_menu_render(void);
  * (also a no-op at the root). Any other key is matched against the
  * table: STATE/ACTION rows run their action then the matched row is
  * repainted in place; SUBMENU rows push the current table onto the nav
- * stack and drill into the sub-menu (full repaint).
+ * stack and drill into the sub-menu (full repaint); CHOICE rows advance
+ * their selection one step and repaint; INPUT rows open an inline editor
+ * that consumes subsequent keys until Enter or Esc.
  *
  * @param[in] k  Received character.
  */

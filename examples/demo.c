@@ -66,10 +66,6 @@
 static HANDLE g_serial = INVALID_HANDLE_VALUE;
 static size_t g_tx_bytes;
 
-/* ------------------------------------------------------------------ */
-/* App state                                                           */
-/* ------------------------------------------------------------------ */
-
 static bool app_led_on;
 
 static void rd_temp(char *b, size_t n, atc_status_t *st) {
@@ -95,10 +91,6 @@ static void act_self_test(void) {
     atc_menu_status("self test ok");
 }
 
-/* ------------------------------------------------------------------ */
-/* Multi-value sensor readers — boilerplate squashed by READ_F     */
-/* ------------------------------------------------------------------ */
-
 READ_F(ina_v, g_ina.bus_v,      "%.2f", st_range(g_ina.bus_v, 3.0f, 4.2f))
 READ_F(ina_i, g_ina.current_ma, "%.0f", st_max(g_ina.current_ma, 1500.f, 2500.f))
 READ_F(ina_p, g_ina.power_mw,   "%.0f", ATC_ST_NONE)
@@ -118,9 +110,65 @@ READ_F(mpu_mx, g_mpu.mx, "%+.1f", ATC_ST_NONE)
 READ_F(mpu_my, g_mpu.my, "%+.1f", ATC_ST_NONE)
 READ_F(mpu_mz, g_mpu.mz, "%+.1f", ATC_ST_NONE)
 
-/* ------------------------------------------------------------------ */
-/* Command handler                                                     */
-/* ------------------------------------------------------------------ */
+static uint8_t      app_pwr_mode = 1;
+static uint8_t      app_fan_mode = 0;
+static int32_t      app_pwm_duty = 50;
+static int32_t      app_threshold_mv = 3300;
+static unsigned int app_cpu_tick;
+
+static const char *app_pwr_choices[] = { "ECO", "NORMAL", "TURBO" };
+static const char *app_fan_choices[] = { "AUTO", "LOW", "MED", "HIGH" };
+
+static void rd_battery_pct(char *b, size_t n, atc_status_t *st) {
+    float v = g_mcu.vbat_v;
+    if (v < 3.0f) v = 3.0f;
+    if (v > 4.2f) v = 4.2f;
+    int pct = (int)((v - 3.0f) * 100.0f / 1.2f + 0.5f);
+    snprintf(b, n, "%d", pct);
+    *st = (pct < 20) ? ATC_ST_ERR : (pct < 40) ? ATC_ST_WARN : ATC_ST_OK;
+}
+
+static void rd_cpu_load(char *b, size_t n, atc_status_t *st) {
+    unsigned int t = (app_cpu_tick++) % 200;
+    int pct = (t < 100) ? (int)t : (int)(200 - t);
+    snprintf(b, n, "%d", pct);
+    *st = (pct >= 85) ? ATC_ST_ERR : (pct >= 60) ? ATC_ST_WARN : ATC_ST_OK;
+}
+
+static void rd_pwm_duty(char *b, size_t n, atc_status_t *st) {
+    snprintf(b, n, "%ld", (long)app_pwm_duty);
+    *st = ATC_ST_OK;
+}
+
+static void rd_threshold(char *b, size_t n, atc_status_t *st) {
+    snprintf(b, n, "%ld", (long)app_threshold_mv);
+    *st = ATC_ST_OK;
+}
+
+static bool commit_pwm_duty(const char *s)  { app_pwm_duty     = atol(s); return true; }
+static bool commit_threshold(const char *s) { app_threshold_mv = atol(s); return true; }
+
+static const atc_menu_item_t widgets_menu[] = {
+    { .type = ATC_ROW_GROUP,  .label = "Levels (BAR)" },
+    { .type = ATC_ROW_BAR,    .key = 'B', .label = "Battery",
+      .read = rd_battery_pct },
+    { .type = ATC_ROW_BAR,    .key = 'c', .label = "CPU Load",
+      .read = rd_cpu_load },
+
+    { .type = ATC_ROW_GROUP,  .label = "Modes (CHOICE)" },
+    { .type = ATC_ROW_CHOICE, .key = 'm', .label = "Power Mode",
+      .choices = app_pwr_choices, .choice_count = 3, .choice_idx = &app_pwr_mode },
+    { .type = ATC_ROW_CHOICE, .key = 'f', .label = "Fan Curve",
+      .choices = app_fan_choices, .choice_count = 4, .choice_idx = &app_fan_mode },
+
+    { .type = ATC_ROW_GROUP,  .label = "Setpoints (INPUT)" },
+    { .type = ATC_ROW_INPUT,  .key = 'd', .label = "PWM Duty", .unit = "%",
+      .read = rd_pwm_duty, .input_type = ATC_INPUT_INT,
+      .input_min = 0, .input_max = 100, .input_commit = commit_pwm_duty },
+    { .type = ATC_ROW_INPUT,  .key = 'h', .label = "Threshold", .unit = "mV",
+      .read = rd_threshold, .input_type = ATC_INPUT_INT,
+      .input_min = 0, .input_max = 5000, .input_commit = commit_threshold },
+};
 
 static float app_load_target_ma = -1.0f;  /* <0 = use sim default */
 
@@ -150,12 +198,18 @@ static const atc_menu_item_t imu_accel_menu[] = {
     { .type = ATC_ROW_VALUE, .label = "Accel Y", .unit = "g", .read = rd_mpu_ay },
     { .type = ATC_ROW_VALUE, .label = "Accel Z", .unit = "g", .read = rd_mpu_az },
 };
+static const atc_menu_table_t imu_accel_table = {
+    .items = imu_accel_menu, .count = ARR_LEN(imu_accel_menu),
+};
 
 static const atc_menu_item_t imu_gyro_menu[] = {
     { .type = ATC_ROW_GROUP, .label = "MPU9250 Gyroscope" },
     { .type = ATC_ROW_VALUE, .label = "Gyro X", .unit = "dps", .read = rd_mpu_gx },
     { .type = ATC_ROW_VALUE, .label = "Gyro Y", .unit = "dps", .read = rd_mpu_gy },
     { .type = ATC_ROW_VALUE, .label = "Gyro Z", .unit = "dps", .read = rd_mpu_gz },
+};
+static const atc_menu_table_t imu_gyro_table = {
+    .items = imu_gyro_menu, .count = ARR_LEN(imu_gyro_menu),
 };
 
 static const atc_menu_item_t imu_mag_menu[] = {
@@ -164,15 +218,26 @@ static const atc_menu_item_t imu_mag_menu[] = {
     { .type = ATC_ROW_VALUE, .label = "Mag Y", .unit = "uT", .read = rd_mpu_my },
     { .type = ATC_ROW_VALUE, .label = "Mag Z", .unit = "uT", .read = rd_mpu_mz },
 };
+static const atc_menu_table_t imu_mag_table = {
+    .items = imu_mag_menu, .count = ARR_LEN(imu_mag_menu),
+};
 
 static const atc_menu_item_t imu_menu[] = {
     { .type = ATC_ROW_GROUP,   .label = "MPU9250 IMU 9-DoF" },
     { .type = ATC_ROW_SUBMENU, .key = 'a', .label = "Accelerometer",
-      .submenu = imu_accel_menu, .submenu_count = ARR_LEN(imu_accel_menu) },
+      .submenu = &imu_accel_table },
     { .type = ATC_ROW_SUBMENU, .key = 'g', .label = "Gyroscope",
-      .submenu = imu_gyro_menu,  .submenu_count = ARR_LEN(imu_gyro_menu) },
+      .submenu = &imu_gyro_table },
     { .type = ATC_ROW_SUBMENU, .key = 'm', .label = "Magnetometer",
-      .submenu = imu_mag_menu,   .submenu_count = ARR_LEN(imu_mag_menu) },
+      .submenu = &imu_mag_table },
+};
+static const char *const imu_notes[] = {
+    "9-DoF IMU, I2C @ 0x68, sample rate 100 Hz.",
+    "Drill into a sub-axis page for individual readouts.",
+};
+static const atc_menu_table_t imu_table = {
+    .items = imu_menu, .count = ARR_LEN(imu_menu),
+    .notes = imu_notes, .note_count = ARR_LEN(imu_notes),
 };
 
 static const atc_menu_item_t power_menu[] = {
@@ -180,6 +245,18 @@ static const atc_menu_item_t power_menu[] = {
     { .type = ATC_ROW_VALUE, .label = "Bus V",   .unit = "V",  .read = rd_ina_v },
     { .type = ATC_ROW_VALUE, .label = "Current", .unit = "mA", .read = rd_ina_i },
     { .type = ATC_ROW_VALUE, .label = "Power",   .unit = "mW", .read = rd_ina_p },
+};
+static const char *const power_notes[] = {
+    "INA219 high-side current monitor, 0.1 ohm shunt.",
+    "':set load <mA>' to push WARN/ERR thresholds.",
+};
+static const atc_menu_table_t power_table = {
+    .items = power_menu, .count = ARR_LEN(power_menu),
+    .notes = power_notes, .note_count = ARR_LEN(power_notes),
+};
+
+static const atc_menu_table_t widgets_table = {
+    .items = widgets_menu, .count = ARR_LEN(widgets_menu),
 };
 
 static const atc_menu_item_t home_menu[] = {
@@ -197,9 +274,11 @@ static const atc_menu_item_t home_menu[] = {
 
     { .type = ATC_ROW_GROUP,   .label = "Drill into" },
     { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "MPU9250 IMU",
-      .submenu = imu_menu,   .submenu_count = ARR_LEN(imu_menu) },
+      .submenu = &imu_table },
     { .type = ATC_ROW_SUBMENU, .key = 'p', .label = "INA219 Power",
-      .submenu = power_menu, .submenu_count = ARR_LEN(power_menu) },
+      .submenu = &power_table },
+    { .type = ATC_ROW_SUBMENU, .key = 'w', .label = "Visual Widgets",
+      .submenu = &widgets_table },
 
     { .type = ATC_ROW_GROUP,   .label = "Control" },
     { .type = ATC_ROW_STATE,   .key = 'L', .label = "LED",
@@ -207,10 +286,14 @@ static const atc_menu_item_t home_menu[] = {
     { .type = ATC_ROW_ACTION,  .key = '1', .label = "Self test",
       .action = act_self_test },
 };
-
-/* ------------------------------------------------------------------ */
-/* Serial port                                                         */
-/* ------------------------------------------------------------------ */
+static const char *const home_notes[] = {
+    "Press a row's hotkey to interact with it.",
+    "Type ':' for command mode (e.g., set temp 30).",
+};
+static const atc_menu_table_t home_table = {
+    .items = home_menu, .count = ARR_LEN(home_menu),
+    .notes = home_notes, .note_count = ARR_LEN(home_notes),
+};
 
 static void com_write(const char *buf, size_t len) {
     g_tx_bytes += len;
@@ -260,10 +343,6 @@ static bool serial_open(const char *port, DWORD baud) {
     return true;
 }
 
-/* ------------------------------------------------------------------ */
-/* Entry point                                                         */
-/* ------------------------------------------------------------------ */
-
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <COMx> [baud]\n", argv[0]);
@@ -275,7 +354,7 @@ int main(int argc, char **argv) {
     sensor_sim_init();
 
     atc_menu_set_info(&demo_info);
-    atc_menu_init(home_menu, ARR_LEN(home_menu), &serial_port);
+    atc_menu_init(&home_table, &serial_port);
     atc_menu_render();
     fprintf(stderr, "initial render: %zu B\n", g_tx_bytes);
 

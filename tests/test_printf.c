@@ -13,12 +13,12 @@ int main(void) {
     };
 
     /* No port configured: printf returns 0. */
-    atc_menu_init(tbl, 1, NULL);
+    ATC_INIT_ITEMS(tbl, NULL);
     EXPECT(atc_menu_printf("hello") == 0);
 
     /* Port configured: formatted output ends up in the buffer. */
     mock_reset();
-    atc_menu_init(tbl, 1, &mock_port);
+    ATC_INIT_ITEMS(tbl, &mock_port);
     mock_reset();
 
     int n = atc_menu_printf("hello %s %d", "world", 42);

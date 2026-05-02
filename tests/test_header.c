@@ -15,9 +15,10 @@
 #include "mock_port.h"
 #include "testing.h"
 
-/* MENU_HDR_INNER (50) is internal to the renderer, so reproduce the box
- * width here. Top edge: corner + 52 dashes + corner = 54 visible chars. */
-#define BOX_WIDTH 54
+/* MENU_INNER_W (= sum of key/label/value/unit/status columns with field
+ * gaps and outer pad) is private to the renderer; we read it back from
+ * the rendered top edge so this test stays sane when layout.h is tuned. */
+static size_t g_box_width;
 
 /* Strip CSI (ESC '[' params final) sequences and return visible length of
  * line @p line_idx from @p src (0-based). Returns 0 if line missing. */
@@ -51,16 +52,18 @@ static const atc_menu_item_t one_row[] = {
 
 static void render_with_info(const atc_menu_info_t *info) {
     atc_menu_set_info(info);
-    atc_menu_init(one_row, 1, &mock_port);
+    ATC_INIT_ITEMS(one_row, &mock_port);
     mock_reset();
     atc_menu_render();
 }
 
 int main(void) {
-    /* --- No info: default "atc menu" project, no version. --- */
+    /* --- No info: default "atc menu" project, no version. Calibrate
+     * BOX_WIDTH from the rendered top edge — every other line must match. */
     render_with_info(NULL);
     const char *out = mock_buffer();
-    EXPECT(visible_line_len(out, 0) == BOX_WIDTH);
+    g_box_width = visible_line_len(out, 0);
+    EXPECT(g_box_width > 0);
     EXPECT_CONTAINS(out, "atc menu");
 
     /* --- Project + version both fit. --- */
@@ -70,34 +73,45 @@ int main(void) {
     };
     render_with_info(&fits);
     out = mock_buffer();
-    EXPECT(visible_line_len(out, 0) == BOX_WIDTH);
+    EXPECT(visible_line_len(out, 0) == g_box_width);
     EXPECT_CONTAINS(out, "ATC Menu Demo");
     EXPECT_CONTAINS(out, "1.0.0");
 
     /* --- Long project, short version: project skipped, version stays.
-     * Threshold: tl + 8 > 52 (title needs +2 padding, +1 leading dash, +5
-     * reserve for " v9 -"). 60-char project clears it comfortably. --- */
+     * Strings are sized to exceed any reasonable layout.h tuning. --- */
+#define LONG_F \
+    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" \
+    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" \
+    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+#define LONG_A \
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+#define LONG_B \
+    "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" \
+    "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" \
+    "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+
     static const atc_menu_info_t long_project = {
-        .project = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+        .project = LONG_F,
         .version = "v9",
     };
     render_with_info(&long_project);
     out = mock_buffer();
-    EXPECT(visible_line_len(out, 0) == BOX_WIDTH);
-    EXPECT_NOT_CONTAINS(out, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+    EXPECT(visible_line_len(out, 0) == g_box_width);
+    EXPECT_NOT_CONTAINS(out, LONG_F);
     EXPECT_CONTAINS(out, "v9");
 
-    /* --- Both too long: both skipped, top edge is just dashes. Version
-     * guard fails when reserve_right > 51 → vl > 48; 60 chars clears it. --- */
+    /* --- Both too long: both skipped, top edge is just dashes. --- */
     static const atc_menu_info_t both_long = {
-        .project = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        .version = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        .project = LONG_A,
+        .version = LONG_B,
     };
     render_with_info(&both_long);
     out = mock_buffer();
-    EXPECT(visible_line_len(out, 0) == BOX_WIDTH);
-    EXPECT_NOT_CONTAINS(out, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    EXPECT_NOT_CONTAINS(out, "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+    EXPECT(visible_line_len(out, 0) == g_box_width);
+    EXPECT_NOT_CONTAINS(out, LONG_A);
+    EXPECT_NOT_CONTAINS(out, LONG_B);
 
     /* --- Project only (no version): no spurious dashes / junk on right. --- */
     static const atc_menu_info_t no_version = {
@@ -105,7 +119,7 @@ int main(void) {
     };
     render_with_info(&no_version);
     out = mock_buffer();
-    EXPECT(visible_line_len(out, 0) == BOX_WIDTH);
+    EXPECT(visible_line_len(out, 0) == g_box_width);
     EXPECT_CONTAINS(out, "Solo");
 
     /* --- Author/build row also respects the box width. --- */
@@ -117,18 +131,18 @@ int main(void) {
     };
     render_with_info(&with_meta);
     out = mock_buffer();
-    EXPECT(visible_line_len(out, 0) == BOX_WIDTH);  /* top edge */
-    EXPECT(visible_line_len(out, 1) == BOX_WIDTH);  /* author/build */
-    EXPECT(visible_line_len(out, 2) == BOX_WIDTH);  /* separator */
+    EXPECT(visible_line_len(out, 0) == g_box_width);  /* top edge */
+    EXPECT(visible_line_len(out, 1) == g_box_width);  /* author/build */
+    EXPECT(visible_line_len(out, 2) == g_box_width);  /* separator */
 
     /* --- Long author + long build: clamped, box width preserved. --- */
     static const atc_menu_info_t long_meta = {
         .project = "X", .version = "1",
-        .author  = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        .build   = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        .author  = LONG_A,
+        .build   = LONG_B,
     };
     render_with_info(&long_meta);
-    EXPECT(visible_line_len(mock_buffer(), 1) == BOX_WIDTH);
+    EXPECT(visible_line_len(mock_buffer(), 1) == g_box_width);
 
     atc_menu_set_info(NULL);
     TEST_RESULT();

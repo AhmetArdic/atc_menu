@@ -12,3 +12,11 @@ atc_add_test(test_printf)
 atc_add_test(test_handle_key)
 atc_add_test(test_render)
 atc_add_test(test_header)
+atc_add_test(test_widgets)
+
+# Visual-inspection dumps (not CTest targets — run by hand to eyeball output).
+add_executable(dump_render dump_render.c)
+target_link_libraries(dump_render PRIVATE atc_menu_mock)
+
+add_executable(dump_warn dump_warn.c)
+target_link_libraries(dump_warn PRIVATE atc_menu_mock)

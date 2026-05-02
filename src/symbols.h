@@ -3,15 +3,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/**
- * @file symbols.h
- * @brief Internal — printable glyphs used by the renderer.
- *
- * Pure ASCII for maximum terminal compatibility.
- *
- * Not part of the public API. Application code should not include this.
- */
-
 #ifndef ATC_SYMBOLS_H
 #define ATC_SYMBOLS_H
 
@@ -31,6 +22,7 @@
 #define SYM_BOX_BR      "+"
 #define SYM_BOX_LJ      "+"
 #define SYM_BOX_RJ      "+"
+#define SYM_BOX_DOT     "."
 
 #define SYM_ST_OK       "OK"
 #define SYM_ST_WARN     "WARN"
@@ -38,4 +30,13 @@
 #define SYM_ST_ON       "ON"
 #define SYM_ST_OFF      "OFF"
 
-#endif /* ATC_SYMBOLS_H */
+#define SYM_BAR_FILL     "#"
+#define SYM_BAR_EMPTY    "."
+#define SYM_BAR_LBR      "["
+#define SYM_BAR_RBR      "]"
+#define SYM_CHOICE_LBR   "["
+#define SYM_CHOICE_RBR   "]"
+#define SYM_INPUT_PROMPT "="
+#define SYM_INPUT_CURSOR "_"
+
+#endif

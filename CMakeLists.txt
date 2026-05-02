@@ -13,6 +13,18 @@ option(ATC_MENU_BUILD_EXAMPLES "Build example app" OFF)
 # ---------------------------------------------------------------------------
 add_library(atc_menu STATIC
     src/menu.c
+    src/render.c
+    src/nav.c
+    src/cmdmode.c
+    src/widget.c
+    src/widget_group.c
+    src/widget_submenu.c
+    src/widget_value.c
+    src/widget_state.c
+    src/widget_action.c
+    src/widget_bar.c
+    src/widget_choice.c
+    src/widget_input.c
 )
 
 target_include_directories(atc_menu

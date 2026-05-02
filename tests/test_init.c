@@ -25,7 +25,7 @@ int main(void) {
           .action = noop },
     };
     mock_reset();
-    atc_menu_init(good, sizeof good / sizeof good[0], &mock_port);
+    ATC_INIT_ITEMS(good, &mock_port);
     EXPECT_NOT_CONTAINS(mock_buffer(), "WARN");
 
     /* VALUE without read must warn. */
@@ -33,7 +33,7 @@ int main(void) {
         { .type = ATC_ROW_VALUE, .key = 't', .label = "Temp", .unit = "" },
     };
     mock_reset();
-    atc_menu_init(bad_value, 1, &mock_port);
+    ATC_INIT_ITEMS(bad_value, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
     EXPECT_CONTAINS(mock_buffer(), "missing read");
 
@@ -43,7 +43,7 @@ int main(void) {
           .read = rd_ok },
     };
     mock_reset();
-    atc_menu_init(bad_state, 1, &mock_port);
+    ATC_INIT_ITEMS(bad_state, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
 
     /* ACTION without action must warn. */
@@ -51,7 +51,7 @@ int main(void) {
         { .type = ATC_ROW_ACTION, .key = '1', .label = "Run", .unit = "" },
     };
     mock_reset();
-    atc_menu_init(bad_action, 1, &mock_port);
+    ATC_INIT_ITEMS(bad_action, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
     EXPECT_CONTAINS(mock_buffer(), "missing action");
 
@@ -63,7 +63,7 @@ int main(void) {
           .action = noop },
     };
     mock_reset();
-    atc_menu_init(dup, 2, &mock_port);
+    ATC_INIT_ITEMS(dup, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "dup key");
 
     /* SUBMENU without a submenu pointer must warn. */
@@ -71,7 +71,7 @@ int main(void) {
         { .type = ATC_ROW_SUBMENU, .key = 's', .label = "S" },
     };
     mock_reset();
-    atc_menu_init(bad_sub, 1, &mock_port);
+    ATC_INIT_ITEMS(bad_sub, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
     EXPECT_CONTAINS(mock_buffer(), "missing submenu");
 
@@ -79,12 +79,15 @@ int main(void) {
     static const atc_menu_item_t leaf[] = {
         { .type = ATC_ROW_GROUP, .label = "Leaf" },
     };
+    static const atc_menu_table_t leaf_tbl = {
+        .items = leaf, .count = 1,
+    };
     static const atc_menu_item_t good_sub[] = {
         { .type = ATC_ROW_SUBMENU, .key = 's', .label = "S",
-          .submenu = leaf, .submenu_count = 1 },
+          .submenu = &leaf_tbl },
     };
     mock_reset();
-    atc_menu_init(good_sub, 1, &mock_port);
+    ATC_INIT_ITEMS(good_sub, &mock_port);
     EXPECT_NOT_CONTAINS(mock_buffer(), "WARN");
 
     /* User row with key 'b' must warn (collides with built-in back). */
@@ -92,7 +95,7 @@ int main(void) {
         { .type = ATC_ROW_ACTION, .key = 'b', .label = "B", .action = noop },
     };
     mock_reset();
-    atc_menu_init(b_collide, 1, &mock_port);
+    ATC_INIT_ITEMS(b_collide, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
     EXPECT_CONTAINS(mock_buffer(), "built-in back");
 
@@ -103,7 +106,7 @@ int main(void) {
           .unit = "C", .read = rd_ok },
     };
     mock_reset();
-    atc_menu_init(long_label, 1, &mock_port);
+    ATC_INIT_ITEMS(long_label, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
     EXPECT_CONTAINS(mock_buffer(), "label");
 
@@ -112,9 +115,54 @@ int main(void) {
           .unit = "milligrams", .read = rd_ok },
     };
     mock_reset();
-    atc_menu_init(long_unit, 1, &mock_port);
+    ATC_INIT_ITEMS(long_unit, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
     EXPECT_CONTAINS(mock_buffer(), "unit");
+
+    /* Notes that exceed the inner width must warn (root table). */
+    static const atc_menu_item_t notes_root_items[] = {
+        { .type = ATC_ROW_GROUP, .label = "G" },
+    };
+    static const char *const long_root_notes[] = {
+        "ThisRootNoteIsDeliberatelyMuchLongerThanTheInnerBoxWidthSoItOverflowsAndShouldWarn",
+    };
+    static const atc_menu_table_t notes_root_tbl = {
+        .items = notes_root_items, .count = 1,
+        .notes = long_root_notes, .note_count = 1,
+    };
+    mock_reset();
+    atc_menu_init(&notes_root_tbl, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "WARN");
+    EXPECT_CONTAINS(mock_buffer(), "note exceeds");
+
+    /* Long notes on a child SUBMENU table also warn at init. */
+    static const char *const long_child_notes[] = {
+        "ThisChildNoteIsDeliberatelyMuchLongerThanTheInnerBoxWidthSoItOverflowsAndShouldWarn",
+    };
+    static const atc_menu_item_t child_items[] = {
+        { .type = ATC_ROW_GROUP, .label = "C" },
+    };
+    static const atc_menu_table_t child_tbl = {
+        .items = child_items, .count = 1,
+        .notes = long_child_notes, .note_count = 1,
+    };
+    static const atc_menu_item_t parent_items[] = {
+        { .type = ATC_ROW_SUBMENU, .key = 's', .label = "S",
+          .submenu = &child_tbl },
+    };
+    mock_reset();
+    ATC_INIT_ITEMS(parent_items, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "note exceeds");
+
+    /* Notes that fit produce no note warnings. */
+    static const char *const ok_notes[] = { "Short note." };
+    static const atc_menu_table_t ok_tbl = {
+        .items = notes_root_items, .count = 1,
+        .notes = ok_notes, .note_count = 1,
+    };
+    mock_reset();
+    atc_menu_init(&ok_tbl, &mock_port);
+    EXPECT_NOT_CONTAINS(mock_buffer(), "note exceeds");
 
     TEST_RESULT();
 }

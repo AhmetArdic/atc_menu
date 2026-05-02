@@ -4,12 +4,13 @@ UART üzerinden çalışan, tablo-driven, allocation-free C99 debug menü framew
 
 ## Özellikler
 
-- Tek soyutlama: `row` — group / value / state / action / submenu
+- Tek soyutlama: `row` — group / value / state / action / submenu / **bar / choice / input**
 - `static const` tablo, sıfır dinamik bellek
 - Flicker-free render (cursor-home + line-erase)
 - Port vtable: UART / USB CDC / telnet / mock — transport değişirse sadece port değişir
 - Built-in `:` komut modu + `r` refresh + `b` back + `?` path + printf-style status/log helper
 - Native sub-menu: `ATC_ROW_SUBMENU` → çerçeve nav stack'ini kendi yönetir; aktif konumu görmek için `?` tam path'i status'a basar
+- Görsel widget seti: `ATC_ROW_BAR` (yatay seviye), `ATC_ROW_CHOICE` (mod döngüsü), `ATC_ROW_INPUT` (runtime parametre girişi)
 
 ## Dizin yapısı
 
@@ -68,6 +69,7 @@ Home hotkey'leri:
 | `e` | BME280 Env grubunu yenile     |
 | `i` | IMU sayfasına geç             |
 | `p` | Power sayfasına geç           |
+| `w` | Visual Widgets sayfasına geç  |
 | `L` | LED toggle                    |
 | `1` | Self-test çalıştır            |
 | `r` | Yenile                        |
@@ -139,7 +141,123 @@ olabilir — demo `home → MPU9250 IMU → {Accel|Gyro|Mag}` 2 derinlik
 gezinti gösterir.
 
 Stack derinliği varsayılan 4; `-DATC_MENU_STACK_DEPTH=8` ile artırılabilir.
-`b` ve `?` tuşlarını user satırına atamak yasak — init validation uyarır.
+
+### Rezerve sistem tuşları
+
+Çerçeve dört tuşu kendi kullanımı için ayırır — kullanıcı satırlarına bu
+tuşlardan birini atamak init validation'da uyarı çıkarır:
+
+| Tuş | İşlev                       |
+|-----|-----------------------------|
+| `r` | tam refresh                 |
+| `b` | parent menüye dön           |
+| `?` | tam path'i status'a yaz     |
+| `:` | komut modu (port.cmd ayarlı ise) |
+
+Bu tuşlar `src/menu.c` içinde `ATC_KEY_REFRESH`, `ATC_KEY_BACK`, `ATC_KEY_PATH`,
+`ATC_KEY_CMD` define'larıyla tanımlıdır; tek noktadan değiştirilebilir.
+
+### Satır layout'u ve genişlikler
+
+Tüm satırlar aynı sütun düzenini paylaşır; `src/layout.h` içinde derived
+şekilde tanımlıdır — bir sütun değişirse `MENU_HDR_INNER` ve box otomatik
+ayarlanır:
+
+```
+| K | LABEL                    | VALUE      | UNIT  | STAT |
+  ^   ^MENU_LABEL_COL          ^MENU_VALUE  ^UNIT   ^STATUS
+```
+
+| Define              | Default | Anlamı                        |
+|---------------------|---------|-------------------------------|
+| `MENU_KEY_COL`      | 1       | Hotkey karakter sütunu        |
+| `MENU_LABEL_COL`    | 24      | Sol-hizalı etiket             |
+| `MENU_VALUE_COL`    | 10      | Sağ-hizalı değer / widget gövdesi |
+| `MENU_UNIT_COL`     | 5       | Sol-hizalı birim              |
+| `MENU_STATUS_COL`   | 4       | Status (max "WARN")           |
+| `MENU_SEP_W`        | 3       | Field ayraç (` \| `)          |
+| `MENU_PAD_W`        | 1       | Border içi pad boşluğu        |
+
+## Görsel widget'lar
+
+Üç ek satır tipi gömülü-debug menüsünün eksik kalan kategorilerini doldurur.
+Hepsi saf ASCII; mevcut 50-char iç genişliği ve 24+10+5 sütun yerleşimini bozmaz.
+
+### `ATC_ROW_BAR` — yatay seviye çubuğu
+
+```
+|  b  Battery               [########..] 78 %    OK  |
+|  c  CPU Load              [######....] 62 %  WARN  |
+|  m  Free RAM              [##........] 12 %   ERR  |
+```
+
+10 char value sütununa `[` + 8 hücre + `]` çubuk yerleşir; `read` ASCII yüzde
+(`"78"`) yazar, çerçeve dolu/boş hücreleri çizer ve yüzdeyi unit sütununda
+basar. Renk `read`'in döndürdüğü `atc_status_t`'ten gelir — eşik mantığı
+kullanıcı kodunda kalır.
+
+```c
+static void rd_battery(char *b, size_t n, atc_status_t *st) {
+    int pct = battery_pct();
+    snprintf(b, n, "%d", pct);
+    *st = (pct < 20) ? ATC_ST_ERR : (pct < 40) ? ATC_ST_WARN : ATC_ST_OK;
+}
+
+{ .type = ATC_ROW_BAR, .key = 'b', .label = "Battery", .read = rd_battery },
+```
+
+### `ATC_ROW_CHOICE` — N-state mod döngüsü
+
+```
+|  m  Power Mode             [ NORMAL ]            OK  |
+|  f  Fan Curve              [  AUTO  ]            OK  |
+```
+
+Tuşa her basışta `*choice_idx` modulo ilerler; satır yerinde tazelenir.
+Seçim string'leri ≤6 karakter olmalı (init uyarır).
+
+```c
+static const char *power_modes[] = { "ECO", "NORMAL", "TURBO" };
+static uint8_t     power_idx = 1;
+
+{ .type = ATC_ROW_CHOICE, .key = 'm', .label = "Power Mode",
+  .choices = power_modes, .choice_count = 3, .choice_idx = &power_idx },
+```
+
+Kalıcılık (flash/NVS) kullanıcının sorumluluğunda — `choice_idx` pointer'ı
+uygulamanın RAM'inde duruyor.
+
+### `ATC_ROW_INPUT` — runtime parametre girişi
+
+```
+Normal:  |  d  PWM Duty                       50  %         OK  |
+Editing: |  d  PWM Duty            =75_                          |
+Footer:  [Enter] commit  [Esc] cancel  [BS] erase    range: 0..100
+```
+
+Tuşa basınca inline editor açılır; çerçeve sonraki tüm tuşları yutar:
+`Enter` validate + commit, `Esc` iptal, `Backspace` siler, geçerli karakter
+buffer'a eklenir. Validation başarısız ise editor açık kalır ve hata
+status satırına basılır. Tip seçenekleri: `ATC_INPUT_INT`, `ATC_INPUT_FLOAT`,
+`ATC_INPUT_HEX`, `ATC_INPUT_STR`.
+
+```c
+static int32_t pwm_duty = 50;
+
+static void rd_pwm(char *b, size_t n, atc_status_t *st) {
+    snprintf(b, n, "%ld", (long)pwm_duty); *st = ATC_ST_OK;
+}
+static bool commit_pwm(const char *s) {
+    pwm_duty = atol(s); apply_pwm(pwm_duty); return true;
+}
+
+{ .type = ATC_ROW_INPUT, .key = 'd', .label = "PWM Duty", .unit = "%",
+  .read = rd_pwm, .input_type = ATC_INPUT_INT,
+  .input_min = 0, .input_max = 100, .input_commit = commit_pwm },
+```
+
+Demo `examples/demo.c` `Visual Widgets` alt-menüsünde her üç widget'ın
+çalışan örneğini içerir (`w` tuşu).
 
 ## Hızlı başlangıç
 

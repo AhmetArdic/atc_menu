@@ -3,13 +3,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/**
- * @file ansi.h
- * @brief Internal — ANSI escape sequences used by the renderer.
- *
- * Not part of the public API. Application code should not include this.
- */
-
 #ifndef ATC_ANSI_H
 #define ATC_ANSI_H
 
@@ -25,6 +18,6 @@
 #define ANSI_HOME      "\033[H"
 #define ANSI_EOL       "\033[K"
 #define ANSI_CLR_BELOW "\033[J"
-#define ANSI_GOTO_FMT  "\033[%d;1H"  /* printf: row (1-based), col 1 */
+#define ANSI_GOTO_FMT  "\033[%d;1H"
 
-#endif /* ATC_ANSI_H */
+#endif

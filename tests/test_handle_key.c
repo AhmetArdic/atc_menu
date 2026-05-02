@@ -36,7 +36,7 @@ int main(void) {
     };
 
     mock_reset();
-    atc_menu_init(items, sizeof items / sizeof items[0], &mock_port);
+    ATC_INIT_ITEMS(items, &mock_port);
 
     /* Hotkey dispatches to the matching row's action. */
     atc_menu_handle_key('L');
@@ -103,21 +103,27 @@ int main(void) {
         { .type = ATC_ROW_GROUP, .label = "Leaf" },
         { .type = ATC_ROW_VALUE, .label = "X", .unit = "C", .read = rd_temp },
     };
+    static const atc_menu_table_t leaf_tbl = {
+        .items = leaf, .count = sizeof leaf / sizeof leaf[0],
+    };
     static const atc_menu_item_t mid[] = {
         { .type = ATC_ROW_GROUP,   .label = "Mid" },
         { .type = ATC_ROW_SUBMENU, .key = 'd', .label = "Deeper",
-          .submenu = leaf, .submenu_count = sizeof leaf / sizeof leaf[0] },
+          .submenu = &leaf_tbl },
+    };
+    static const atc_menu_table_t mid_tbl = {
+        .items = mid, .count = sizeof mid / sizeof mid[0],
     };
     static const atc_menu_item_t root[] = {
         { .type = ATC_ROW_GROUP,   .label = "Root" },
         { .type = ATC_ROW_SUBMENU, .key = 'm', .label = "Mid menu",
-          .submenu = mid, .submenu_count = sizeof mid / sizeof mid[0] },
+          .submenu = &mid_tbl },
         { .type = ATC_ROW_ACTION,  .key = '1', .label = "Run",
           .action = act_run },
     };
 
     mock_reset();
-    atc_menu_init(root, sizeof root / sizeof root[0], &mock_port);
+    ATC_INIT_ITEMS(root, &mock_port);
     mock_reset();
     atc_menu_handle_key('m');
     EXPECT_CONTAINS(mock_buffer(), "Mid");
@@ -165,27 +171,42 @@ int main(void) {
     static const atc_menu_item_t lvl5[] = {
         { .type = ATC_ROW_GROUP, .label = "L5" },
     };
+    static const atc_menu_table_t lvl5_tbl = {
+        .items = lvl5, .count = sizeof lvl5 / sizeof lvl5[0],
+    };
     static const atc_menu_item_t lvl4[] = {
         { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L5",
-          .submenu = lvl5, .submenu_count = sizeof lvl5 / sizeof lvl5[0] },
+          .submenu = &lvl5_tbl },
+    };
+    static const atc_menu_table_t lvl4_tbl = {
+        .items = lvl4, .count = sizeof lvl4 / sizeof lvl4[0],
     };
     static const atc_menu_item_t lvl3[] = {
         { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L4",
-          .submenu = lvl4, .submenu_count = sizeof lvl4 / sizeof lvl4[0] },
+          .submenu = &lvl4_tbl },
+    };
+    static const atc_menu_table_t lvl3_tbl = {
+        .items = lvl3, .count = sizeof lvl3 / sizeof lvl3[0],
     };
     static const atc_menu_item_t lvl2[] = {
         { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L3",
-          .submenu = lvl3, .submenu_count = sizeof lvl3 / sizeof lvl3[0] },
+          .submenu = &lvl3_tbl },
+    };
+    static const atc_menu_table_t lvl2_tbl = {
+        .items = lvl2, .count = sizeof lvl2 / sizeof lvl2[0],
     };
     static const atc_menu_item_t lvl1[] = {
         { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L2",
-          .submenu = lvl2, .submenu_count = sizeof lvl2 / sizeof lvl2[0] },
+          .submenu = &lvl2_tbl },
+    };
+    static const atc_menu_table_t lvl1_tbl = {
+        .items = lvl1, .count = sizeof lvl1 / sizeof lvl1[0],
     };
     static const atc_menu_item_t lvl0[] = {
         { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L1",
-          .submenu = lvl1, .submenu_count = sizeof lvl1 / sizeof lvl1[0] },
+          .submenu = &lvl1_tbl },
     };
-    atc_menu_init(lvl0, sizeof lvl0 / sizeof lvl0[0], &mock_port);
+    ATC_INIT_ITEMS(lvl0, &mock_port);
     atc_menu_handle_key('n');   /* depth 1 */
     atc_menu_handle_key('n');   /* depth 2 */
     atc_menu_handle_key('n');   /* depth 3 */

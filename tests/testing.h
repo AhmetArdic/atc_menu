@@ -15,8 +15,22 @@
 #ifndef TESTING_H
 #define TESTING_H
 
+#include "atc_menu/atc_menu.h"
+
 #include <stdio.h>
 #include <string.h>
+
+/* Wrap an item array in a static atc_menu_table_t and call atc_menu_init.
+ * Each call site gets its own static thanks to lexical scoping of `static`
+ * inside a block; the table outlives the framework's stored pointer. */
+#define ATC_INIT_ITEMS(items_arr, port)                                    \
+    do {                                                                   \
+        static const atc_menu_table_t _atc_tbl_ = {                        \
+            .items = (items_arr),                                          \
+            .count = sizeof(items_arr) / sizeof((items_arr)[0]),           \
+        };                                                                 \
+        atc_menu_init(&_atc_tbl_, (port));                                 \
+    } while (0)
 
 static int testing_failures_;
 
