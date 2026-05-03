@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "widget.h"
+#include "widgets/widget.h"
 
 extern const widget_ops_t widget_group_ops;
 extern const widget_ops_t widget_submenu_ops;

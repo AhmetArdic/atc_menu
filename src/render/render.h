@@ -6,7 +6,7 @@
 #ifndef ATC_MENU_RENDER_H
 #define ATC_MENU_RENDER_H
 
-#include "internal.h"
+#include "core/internal.h"
 
 typedef struct { const char *color, *text; } status_disp_t;
 

@@ -6,7 +6,7 @@
 #ifndef ATC_MENU_CMDMODE_H
 #define ATC_MENU_CMDMODE_H
 
-#include "internal.h"
+#include "core/internal.h"
 
 void cmdmode_reset(void);
 bool cmdmode_active(void);

@@ -5,12 +5,12 @@
 
 #include "atc_menu/atc_menu.h"
 
-#include "ansi.h"
-#include "cmdmode.h"
-#include "internal.h"
-#include "nav.h"
-#include "render.h"
-#include "widget.h"
+#include "core/internal.h"
+#include "input/cmdmode.h"
+#include "input/nav.h"
+#include "render/ansi.h"
+#include "render/render.h"
+#include "widgets/widget.h"
 
 #include <stdarg.h>
 #include <stdio.h>

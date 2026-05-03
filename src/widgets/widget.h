@@ -14,7 +14,7 @@
 #ifndef ATC_MENU_WIDGET_H
 #define ATC_MENU_WIDGET_H
 
-#include "internal.h"
+#include "core/internal.h"
 
 typedef struct {
     void (*render)(int zebra_idx, const atc_menu_item_t *it);

@@ -8,9 +8,9 @@
 
 #include "atc_menu/atc_menu.h"
 
-#include "ansi.h"
-#include "layout.h"
-#include "symbols.h"
+#include "render/ansi.h"
+#include "render/layout.h"
+#include "render/symbols.h"
 
 #include <stdbool.h>
 #include <stddef.h>

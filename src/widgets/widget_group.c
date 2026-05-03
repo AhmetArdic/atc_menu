@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "render.h"
-#include "widget.h"
+#include "render/render.h"
+#include "widgets/widget.h"
 
 #include <string.h>
 

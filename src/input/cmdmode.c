@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "cmdmode.h"
+#include "input/cmdmode.h"
 
 static bool   g_active;
 static char   g_buf[MENU_CMD_BUF];

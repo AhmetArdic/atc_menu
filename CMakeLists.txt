@@ -12,19 +12,19 @@ option(ATC_MENU_BUILD_EXAMPLES "Build example app" OFF)
 # Core library
 # ---------------------------------------------------------------------------
 add_library(atc_menu STATIC
-    src/menu.c
-    src/render.c
-    src/nav.c
-    src/cmdmode.c
-    src/widget.c
-    src/widget_group.c
-    src/widget_submenu.c
-    src/widget_value.c
-    src/widget_state.c
-    src/widget_action.c
-    src/widget_bar.c
-    src/widget_choice.c
-    src/widget_input.c
+    src/core/menu.c
+    src/render/render.c
+    src/input/nav.c
+    src/input/cmdmode.c
+    src/widgets/widget.c
+    src/widgets/widget_group.c
+    src/widgets/widget_submenu.c
+    src/widgets/widget_value.c
+    src/widgets/widget_state.c
+    src/widgets/widget_action.c
+    src/widgets/widget_bar.c
+    src/widgets/widget_choice.c
+    src/widgets/widget_input.c
 )
 
 target_include_directories(atc_menu

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "nav.h"
+#include "input/nav.h"
 
-#include "render.h"
+#include "render/render.h"
 
 #include <stdio.h>
 
