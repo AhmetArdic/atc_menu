@@ -39,35 +39,23 @@ typedef enum {
 } atc_status_t;
 
 /**
- * @brief Row type. Determines how the row is rendered and which callbacks
- *        are required.
+ * @brief Row type. Drives rendering and which fields are required.
  *
- * | Type            | read     | action     | Visual                          |
- * |-----------------|----------|------------|---------------------------------|
- * | ATC_ROW_GROUP   | unused   | unused     | `m  MPU9250 IMU`                |
- * | ATC_ROW_VALUE   | required | optional   | `t  Temp   45.3 C   OK`         |
- * | ATC_ROW_STATE   | required | required   | `L  LED    ON`                  |
- * | ATC_ROW_ACTION  | unused   | required   | `1  Flash CRC`                  |
- * | ATC_ROW_SUBMENU | unused   | unused     | `i  > MPU9250 IMU`              |
- * | ATC_ROW_BAR     | required | unused     | `b  Battery [######..] 78 % OK` |
- * | ATC_ROW_CHOICE  | optional | unused     | `p  Mode    [ NORMAL ]      OK` |
- * | ATC_ROW_INPUT   | required | unused     | `d  PWM Duty       50 %     OK` |
+ * | Type            | read     | action   | Visual                          |
+ * |-----------------|----------|----------|---------------------------------|
+ * | ATC_ROW_GROUP   | unused   | unused   | `   MPU9250 IMU`                |
+ * | ATC_ROW_VALUE   | required | optional | `t  Temp   45.3 C   OK`         |
+ * | ATC_ROW_STATE   | required | required | `L  LED    ON`                  |
+ * | ATC_ROW_ACTION  | unused   | required | `1  Flash CRC`                  |
+ * | ATC_ROW_SUBMENU | unused   | unused   | `i  ❯ MPU9250 IMU`              |
+ * | ATC_ROW_BAR     | required | unused   | `b  Battery ▕████▎  ▏ 78 % OK`  |
+ * | ATC_ROW_CHOICE  | optional | unused   | `p  Mode    ❮ NORMAL ❯      OK` |
+ * | ATC_ROW_INPUT   | required | unused   | `d  PWM Duty       50 %     OK` |
  *
- * Groups may carry a `key`; pressing it bulk-refreshes the group label
- * and every row up to the next group.
- *
- * SUBMENU rows drill into another items table; the framework keeps a
- * fixed-depth navigation stack and the built-in `b` key pops back.
- *
- * BAR renders an 8-cell horizontal level bar in the value column; the
- * reader returns an ASCII percent (0..100) and a status that drives color.
- *
- * CHOICE cycles through a fixed array of strings on key press; the
- * current selection is owned by the application via a uint8_t pointer.
- *
- * INPUT lets the user enter a runtime value (int/float/hex/string)
- * with on-screen editing. Pressing the row's key opens an input prompt;
- * Enter commits via @ref atc_input_fn_t after validation; Esc cancels.
+ * SUBMENU additionally requires `submenu`. CHOICE requires `choices`
+ * and `choice_idx`. INPUT requires `input_commit`. See the per-field
+ * comments on ::atc_menu_item for usage details and the optional hooks
+ * (`choice_commit` for browse-then-commit, etc.).
  */
 typedef enum {
     ATC_ROW_GROUP,   /**< Section header. Optional key bulk-refreshes the span. */
@@ -136,6 +124,9 @@ typedef struct atc_menu_item {
     const char    **choices;       /**< Array of choice strings (each <= 6 chars). */
     uint8_t         choice_count;  /**< Number of entries in @ref choices. */
     uint8_t        *choice_idx;    /**< Pointer to current selection (mutable, app-owned). */
+    atc_action_fn_t choice_commit; /**< Optional. NULL: key cycles+writes immediately.
+                                        Non-NULL: key opens edit mode; Enter commits
+                                        and fires this callback, Esc reverts. */
 
     /* INPUT-specific (used when type == ATC_ROW_INPUT; ignored otherwise). */
     atc_input_type_t input_type;   /**< Editor data type. */
@@ -200,8 +191,8 @@ typedef struct {
 /**
  * @brief Initialize the menu with a root table and a transport port.
  *
- * Validates the table at startup and emits warnings via atc_menu_printf()
- * for duplicate hotkeys and missing required callbacks.
+ * Validates the table at startup and emits warnings to the configured
+ * port for duplicate hotkeys and missing required callbacks.
  *
  * @param[in] table  Root menu table (must outlive the menu).
  * @param[in] port   Port vtable (must outlive the menu).
@@ -231,15 +222,9 @@ void atc_menu_render(void);
 /**
  * @brief Feed a received character to the menu.
  *
- * Built-in keys: 'r' refreshes the whole menu, ':' enters command mode
- * (if port.cmd is set), 'b' pops the navigation stack one level (no-op
- * at the root), '?' prints the full breadcrumb path via the status line
- * (also a no-op at the root). Any other key is matched against the
- * table: STATE/ACTION rows run their action then the matched row is
- * repainted in place; SUBMENU rows push the current table onto the nav
- * stack and drill into the sub-menu (full repaint); CHOICE rows advance
- * their selection one step and repaint; INPUT rows open an inline editor
- * that consumes subsequent keys until Enter or Esc.
+ * Built-in keys: `r` refresh, `b` back, `?` path, `:` command mode.
+ * Any other key is matched against the active table; per-row behavior
+ * is documented on ::atc_row_type_t.
  *
  * @param[in] k  Received character.
  */
@@ -251,16 +236,6 @@ void atc_menu_handle_key(char k);
  * @param[in] msg  Null-terminated message.
  */
 void atc_menu_status(const char *msg);
-
-/**
- * @brief printf-style output routed through the configured port.
- *
- * Output is bounded to ~128 bytes per call; longer strings are truncated.
- *
- * @param[in] fmt  printf format string.
- * @return Number of bytes written, or 0 if no port is configured.
- */
-int atc_menu_printf(const char *fmt, ...);
 
 #ifdef __cplusplus
 }

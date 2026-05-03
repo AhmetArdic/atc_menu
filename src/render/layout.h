@@ -15,7 +15,7 @@
 #define MENU_LABEL_COL    24
 #define MENU_VALUE_COL    10
 #define MENU_UNIT_COL      5
-#define MENU_STATUS_COL    4
+#define MENU_STATUS_COL    1
 
 #define MENU_PAD_W         0
 #define MENU_FIELD_GAP_W   3
@@ -46,5 +46,10 @@
 #define MENU_CMD_BUF     64
 #define MENU_INPUT_BUF   16
 #define MENU_ROW_BUF    256
+
+#define UTF8_MAX_BYTES   4
+
+#define MENU_VALUE_BUF      (MENU_VALUE_COL    * UTF8_MAX_BYTES + 1)
+#define MENU_INPUT_EDIT_BUF (MENU_INPUT_EDIT_W * UTF8_MAX_BYTES + MENU_INPUT_BUF + 1)
 
 #endif

@@ -39,4 +39,6 @@ void menu_render_row_at(size_t index);
 void menu_render_group_span(size_t start);
 void menu_park_cursor(void);
 
+int menu_printf(const char *fmt, ...);
+
 #endif

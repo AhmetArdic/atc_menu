@@ -128,16 +128,16 @@ int main(void) {
     atc_menu_handle_key('m');
     EXPECT_CONTAINS(mock_buffer(), "Mid");
     EXPECT_CONTAINS(mock_buffer(), "Deeper");
-    EXPECT_NOT_CONTAINS(mock_buffer(), "Home > ");
+    EXPECT_NOT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba ");
 
     mock_reset();
     atc_menu_handle_key('?');
-    EXPECT_CONTAINS(mock_buffer(), "Home > Mid menu");
+    EXPECT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba Mid menu"); /* Home › Mid menu */
 
     mock_reset();
     atc_menu_handle_key('b');
     EXPECT_CONTAINS(mock_buffer(), "Root");
-    EXPECT_NOT_CONTAINS(mock_buffer(), "Home > ");
+    EXPECT_NOT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba ");
 
     /* Built-in keys are no-ops at the root. */
     mock_reset();
@@ -153,7 +153,7 @@ int main(void) {
     EXPECT_CONTAINS(mock_buffer(), "Leaf");
     mock_reset();
     atc_menu_handle_key('?');
-    EXPECT_CONTAINS(mock_buffer(), "Home > Mid menu > Deeper");
+    EXPECT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba Mid menu \xe2\x80\xba Deeper"); /* Home › Mid menu › Deeper */
 
     mock_reset();
     atc_menu_handle_key('b');

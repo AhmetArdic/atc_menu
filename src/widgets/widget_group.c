@@ -21,7 +21,7 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
 
 static void validate(const atc_menu_item_t *it) {
     if (it->label && strlen(it->label) > MENU_GROUP_LABEL_W)
-        atc_menu_printf("WARN: GROUP label '%s' exceeds %d cols\r\n",
+        menu_printf("WARN: GROUP label '%s' exceeds %d cols\r\n",
                         it->label, MENU_GROUP_LABEL_W);
 }
 

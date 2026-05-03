@@ -33,4 +33,9 @@ void widget_input_render_footer(void);
 void widget_input_key(char k);
 void widget_input_reset(void);
 
+bool widget_choice_active(void);
+void widget_choice_render_footer(void);
+void widget_choice_key(char k);
+void widget_choice_reset(void);
+
 #endif

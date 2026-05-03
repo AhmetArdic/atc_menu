@@ -44,11 +44,11 @@ size_t nav_note_count(void) {
 void nav_push(const atc_menu_item_t *opener) {
     const atc_menu_table_t *t = opener->submenu;
     if (!t || !t->items || t->count == 0) {
-        atc_menu_printf("WARN: SUBMENU '%c' has no submenu table\r\n", opener->key);
+        menu_printf("WARN: SUBMENU '%c' has no submenu table\r\n", opener->key);
         return;
     }
     if (g_stack_depth >= ATC_MENU_STACK_DEPTH) {
-        atc_menu_printf("WARN: nav stack full (depth %d)\r\n", ATC_MENU_STACK_DEPTH);
+        menu_printf("WARN: nav stack full (depth %d)\r\n", ATC_MENU_STACK_DEPTH);
         return;
     }
     g_stack[g_stack_depth].table = g_table;
@@ -78,6 +78,6 @@ void nav_show_path(void) {
         if (w > 0) n += (size_t)w < sizeof b - n ? (size_t)w : sizeof b - n - 1;
     }
 
-    atc_menu_printf("\r\n" ANSI_DIM "%.*s" ANSI_EOL ANSI_RESET "\r\n", (int)n, b);
+    menu_printf("\r\n" ANSI_DIM "%.*s" ANSI_EOL ANSI_RESET "\r\n", (int)n, b);
     menu_set_status_dirty(true);
 }

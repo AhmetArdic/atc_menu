@@ -36,7 +36,7 @@ const char *reserved_key_role(char k) {
     return NULL;
 }
 
-int atc_menu_printf(const char *fmt, ...) {
+int menu_printf(const char *fmt, ...) {
     if (!g_port || !g_port->write) return 0;
 
     row_t   r;
@@ -68,7 +68,7 @@ static void render_item(int zebra, const atc_menu_item_t *it) {
 void menu_render_row_at(size_t index) {
     int y = render_header_lines(g_info) + 1 + (int)index;
     render_park_cursor(y, false);
-    atc_menu_printf("%s", ANSI_EOL);
+    menu_printf("%s", ANSI_EOL);
     render_item((int)index, &nav_items()[index]);
     menu_park_cursor();
 }
@@ -81,7 +81,7 @@ void menu_render_group_span(size_t start) {
 
     int y = render_header_lines(g_info) + 1 + (int)start;
     render_park_cursor(y, false);
-    atc_menu_printf("%s", ANSI_EOL);
+    menu_printf("%s", ANSI_EOL);
     for (size_t i = start; i < end; i++) render_item((int)i, &items[i]);
     menu_park_cursor();
 }
@@ -91,7 +91,7 @@ void atc_menu_set_info(const atc_menu_info_t *info) { g_info = info; }
 void atc_menu_render(void) {
     if (!nav_items() || !g_port) return;
 
-    atc_menu_printf("%s", ANSI_HOME);
+    menu_printf("%s", ANSI_HOME);
     render_header(g_info);
 
     const atc_menu_item_t *items = nav_items();
@@ -101,10 +101,11 @@ void atc_menu_render(void) {
     render_notes_block(nav_notes(), nav_note_count());
     render_box_bottom();
 
-    atc_menu_printf("%s", ANSI_CLR_BELOW);
-    if (widget_input_active()) widget_input_render_footer();
-    else                       render_default_footer(nav_depth() > 0);
-    atc_menu_printf("%s", ANSI_CLR_BELOW);
+    menu_printf("%s", ANSI_CLR_BELOW);
+    if      (widget_input_active())  widget_input_render_footer();
+    else if (widget_choice_active()) widget_choice_render_footer();
+    else                             render_default_footer(nav_depth() > 0);
+    menu_printf("%s", ANSI_CLR_BELOW);
     g_status_dirty = false;
 }
 
@@ -119,6 +120,7 @@ void atc_menu_init(const atc_menu_table_t *table,
 
     cmdmode_reset();
     widget_input_reset();
+    widget_choice_reset();
     nav_reset(table);
 
     if (!table || !table->items || !port) return;
@@ -133,7 +135,7 @@ void atc_menu_init(const atc_menu_table_t *table,
         if (a->key) {
             const char *role = reserved_key_role(a->key);
             if (role)
-                atc_menu_printf("WARN: key '%c' collides with %s\r\n",
+                menu_printf("WARN: key '%c' collides with %s\r\n",
                                 a->key, role);
         }
         const widget_ops_t *ops = widget_ops(a->type);
@@ -142,7 +144,7 @@ void atc_menu_init(const atc_menu_table_t *table,
         if (!a->key) continue;
         for (size_t j = i + 1; j < count; j++) {
             if (a->key == items[j].key)
-                atc_menu_printf("WARN: dup key '%c'\r\n", a->key);
+                menu_printf("WARN: dup key '%c'\r\n", a->key);
         }
     }
 }
@@ -150,10 +152,15 @@ void atc_menu_init(const atc_menu_table_t *table,
 void atc_menu_handle_key(char k) {
     if (!nav_items() || !g_port) return;
 
-    if (cmdmode_active())       { cmdmode_key(k);     return; }
-    if (widget_input_active())  { widget_input_key(k); return; }
+    if (cmdmode_active())       { cmdmode_key(k);      return; }
+    if (widget_input_active())  { widget_input_key(k);  return; }
+    if (widget_choice_active()) { widget_choice_key(k); return; }
 
-    if (k == ATC_KEY_CMD && g_port->cmd) { cmdmode_enter(); return; }
+    if (k == ATC_KEY_CMD && g_port->cmd) {
+        atc_menu_render();
+        cmdmode_enter();
+        return;
+    }
     if (k == ATC_KEY_REFRESH)            { atc_menu_render(); return; }
     if (k == ATC_KEY_BACK && nav_depth() > 0) {
         nav_pop();

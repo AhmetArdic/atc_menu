@@ -47,9 +47,9 @@ int main(void) {
     EXPECT_CONTAINS(out, "42.0");
     EXPECT_CONTAINS(out, "C");
 
-    /* State rows render their status text. */
+    /* State rows render their status glyph. */
     EXPECT_CONTAINS(out, "LED");
-    EXPECT_CONTAINS(out, "ON");
+    EXPECT_CONTAINS(out, "\xe2\x97\x8f"); /* ● (ON) */
 
     /* Footer hints at the built-in keys. */
     EXPECT_CONTAINS(out, "[r]");
@@ -81,12 +81,12 @@ int main(void) {
     atc_menu_render();
     out = mock_buffer();
 
-    /* SUBMENU label and the '> ' marker both appear (ANSI escapes are
+    /* SUBMENU label and the '❯ ' marker both appear (ANSI escapes are
      * interleaved between them, so we can't grep for them adjacently). */
     EXPECT_CONTAINS(out, "Inner");
-    EXPECT_CONTAINS(out, "> ");
+    EXPECT_CONTAINS(out, "\xe2\x9d\xaf "); /* ❯ submenu marker */
     /* Path indicator hidden at root. */
-    EXPECT_NOT_CONTAINS(out, "Home > ");
+    EXPECT_NOT_CONTAINS(out, "Home \xe2\x80\xba "); /* Home › */
 
     mock_reset();
     atc_menu_handle_key('i');
@@ -97,7 +97,7 @@ int main(void) {
 
     mock_reset();
     atc_menu_handle_key('?');
-    EXPECT_CONTAINS(mock_buffer(), "Home > Inner");
+    EXPECT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba Inner"); /* Home › Inner */
 
     /* Two-level: '?' chains parent + active labels. */
     static const atc_menu_item_t deep_leaf[] = {
@@ -122,10 +122,10 @@ int main(void) {
     mock_reset();
     atc_menu_handle_key('l');
     EXPECT_CONTAINS(mock_buffer(), "DeepLeaf");
-    EXPECT_NOT_CONTAINS(mock_buffer(), "Home > ");
+    EXPECT_NOT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba "); /* Home › */
     mock_reset();
     atc_menu_handle_key('?');
-    EXPECT_CONTAINS(mock_buffer(), "Home > Middle > Leaf");
+    EXPECT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba Middle \xe2\x80\xba Leaf"); /* Home › Middle › Leaf */
 
     ATC_INIT_ITEMS(items, &mock_port);
     mock_reset();

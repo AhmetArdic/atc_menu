@@ -30,12 +30,12 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
 
 static void validate(const atc_menu_item_t *it) {
     if (!it->read)
-        atc_menu_printf("WARN: ATC_ROW_VALUE '%c' missing read\r\n", it->key);
+        menu_printf("WARN: ATC_ROW_VALUE '%c' missing read\r\n", it->key);
     if (it->label && strlen(it->label) > MENU_LABEL_COL)
-        atc_menu_printf("WARN: label '%s' exceeds %d cols\r\n",
+        menu_printf("WARN: label '%s' exceeds %d cols\r\n",
                         it->label, MENU_LABEL_COL);
     if (it->unit && strlen(it->unit) > MENU_UNIT_COL)
-        atc_menu_printf("WARN: unit '%s' exceeds %d cols\r\n",
+        menu_printf("WARN: unit '%s' exceeds %d cols\r\n",
                         it->unit, MENU_UNIT_COL);
 }
 

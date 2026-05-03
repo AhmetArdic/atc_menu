@@ -8,7 +8,6 @@ function(atc_add_test name)
 endfunction()
 
 atc_add_test(test_init)
-atc_add_test(test_printf)
 atc_add_test(test_handle_key)
 atc_add_test(test_render)
 atc_add_test(test_header)

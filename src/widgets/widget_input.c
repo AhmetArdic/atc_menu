@@ -45,15 +45,22 @@ static void render_normal(int zebra_idx, const atc_menu_item_t *it) {
 }
 
 static void render_active(int zebra_idx, const atc_menu_item_t *it) {
-    char edit[MENU_INPUT_EDIT_W + 4];
-    int  ep = 0;
-    edit[ep++] = SYM_INPUT_PROMPT[0];
-    int copy = (int)g_pos;
-    if (copy > (int)sizeof edit - 3) copy = (int)sizeof edit - 3;
-    memcpy(edit + ep, g_buf, (size_t)copy);
+    char   edit[MENU_INPUT_EDIT_BUF];
+    size_t ep  = 0;
+    size_t cap = sizeof edit;
+
+    int n = snprintf(edit + ep, cap - ep, "%s", SYM_INPUT_PROMPT);
+    if (n > 0 && (size_t)n < cap - ep) ep += (size_t)n;
+
+    size_t copy = g_pos;
+    if (copy > cap - ep - sizeof SYM_INPUT_CURSOR - 1)
+        copy = cap - ep - sizeof SYM_INPUT_CURSOR - 1;
+    memcpy(edit + ep, g_buf, copy);
     ep += copy;
-    edit[ep++] = SYM_INPUT_CURSOR[0];
-    edit[ep]   = '\0';
+
+    n = snprintf(edit + ep, cap - ep, "%s", SYM_INPUT_CURSOR);
+    if (n > 0 && (size_t)n < cap - ep) ep += (size_t)n;
+    edit[ep] = '\0';
 
     row_t r;
     row_open(&r, zebra_idx);
@@ -76,12 +83,12 @@ void widget_input_render_footer(void) {
     if (!g_item) return;
     if (g_item->input_type == ATC_INPUT_INT
      || g_item->input_type == ATC_INPUT_HEX) {
-        atc_menu_printf("\r\n" ANSI_DIM
+        menu_printf("\r\n" ANSI_DIM
             "[Enter] commit  [Esc] cancel  [BS] erase    range: %ld..%ld"
             ANSI_RESET ANSI_EOL "\r\n",
             (long)g_item->input_min, (long)g_item->input_max);
     } else {
-        atc_menu_printf("\r\n" ANSI_DIM
+        menu_printf("\r\n" ANSI_DIM
             "[Enter] commit  [Esc] cancel  [BS] erase"
             ANSI_RESET ANSI_EOL "\r\n");
     }
@@ -172,11 +179,11 @@ void widget_input_key(char k) {
 
 static void validate(const atc_menu_item_t *it) {
     if (!it->read || !it->input_commit)
-        atc_menu_printf("WARN: ATC_ROW_INPUT '%c' missing read/input_commit\r\n",
+        menu_printf("WARN: ATC_ROW_INPUT '%c' missing read/input_commit\r\n",
                         it->key);
     if ((it->input_type == ATC_INPUT_INT || it->input_type == ATC_INPUT_HEX)
         && it->input_min > it->input_max)
-        atc_menu_printf("WARN: ATC_ROW_INPUT '%c' min > max\r\n", it->key);
+        menu_printf("WARN: ATC_ROW_INPUT '%c' min > max\r\n", it->key);
 }
 
 static void on_key(const atc_menu_item_t *it, size_t index) {

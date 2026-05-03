@@ -28,6 +28,23 @@ static const char *zebra_bg(int zebra_idx) {
     return (zebra_idx & 1) ? ANSI_BG_ZEBRA : "";
 }
 
+static int utf8_cols(const char *s) {
+    int cols = 0;
+    if (!s) return 0;
+    while (*s) {
+        unsigned char c = (unsigned char)*s;
+        int adv;
+        if      ((c & 0x80) == 0x00) adv = 1;
+        else if ((c & 0xE0) == 0xC0) adv = 2;
+        else if ((c & 0xF0) == 0xE0) adv = 3;
+        else if ((c & 0xF8) == 0xF0) adv = 4;
+        else                         adv = 1;
+        cols++;
+        s += adv;
+    }
+    return cols;
+}
+
 void row_reset(row_t *r) {
     r->bg  = "";
     r->len = 0;
@@ -74,8 +91,17 @@ void row_key(row_t *r, char k) {
 }
 
 void row_cell(row_t *r, int width, const char *style, const char *text) {
+    if (!text) text = "";
+    int cols = utf8_cols(text);
+    int pad  = width - cols;
+
     if (style && *style) row_printf(r, "%s", style);
-    row_printf(r, "%-*.*s", width, width, text ? text : "");
+    if (cols <= width) {
+        row_printf(r, "%s", text);
+        if (pad > 0) row_printf(r, "%*s", pad, "");
+    } else {
+        row_printf(r, "%-*.*s", width, width, text);
+    }
     if (style && *style) row_printf(r, ANSI_RESET "%s", r->bg);
 }
 
@@ -154,7 +180,7 @@ void render_validate_notes(const char *const *notes, size_t count) {
     if (!notes || count == 0) return;
     for (size_t i = 0; i < count; i++) {
         if (notes[i] && (int)strlen(notes[i]) > MENU_NOTE_W)
-            atc_menu_printf("WARN: note exceeds %d cols: '%s'\r\n",
+            menu_printf("WARN: note exceeds %d cols: '%s'\r\n",
                             MENU_NOTE_W, notes[i]);
     }
 }
@@ -173,7 +199,7 @@ void render_box_top(const char *title, const char *version) {
     int reserve_right = vl ? (vl + 3) : 0;
 
     if (title && used + tl + 2 + reserve_right <= total) {
-        row_printf(&r, " " ANSI_RESET ANSI_BOLD ANSI_FG_KEY "%s" ANSI_RESET ANSI_DIM " ", title);
+        row_printf(&r, " %s ", title);
         used += tl + 2;
     }
 
@@ -181,7 +207,7 @@ void render_box_top(const char *title, const char *version) {
     for (; used < dashes_end; used++) row_printf(&r, "%s", SYM_BOX_H);
 
     if (version && used + reserve_right <= total) {
-        row_printf(&r, " " ANSI_RESET ANSI_FG_VAL "%s" ANSI_RESET ANSI_DIM " ", version);
+        row_printf(&r, " %s ", version);
         used += vl + 2;
     }
 
@@ -194,8 +220,8 @@ void render_info_row(const char *l, const char *r,
                      const char *l_color, const char *r_color) {
     int lw = l ? (int)strlen(l) : 0;
     int rw = r ? (int)strlen(r) : 0;
-    if (lw > MENU_NOTE_W)      lw = MENU_NOTE_W;
-    if (rw > MENU_NOTE_W - lw) rw = MENU_NOTE_W - lw;
+    if (rw > MENU_NOTE_W)      rw = MENU_NOTE_W;
+    if (lw > MENU_NOTE_W - rw) lw = MENU_NOTE_W - rw;
     int gap = MENU_NOTE_W - lw - rw;
 
     row_t row;
@@ -216,35 +242,34 @@ void render_header(const atc_menu_info_t *info) {
     const char *author  = (info && info->author)  ? info->author  : NULL;
     const char *build   = (info && info->build)   ? info->build   : NULL;
 
-    render_box_top(project, version);
-    if (author || build) render_info_row(author, build, ANSI_DIM, ANSI_DIM);
+    render_box_top(author, build);
+    render_info_row(project, version, ANSI_BOLD ANSI_FG_KEY, ANSI_FG_VAL);
     render_box_separator();
 }
 
 int render_header_lines(const atc_menu_info_t *info) {
-    int n = 2;
-    if (info && (info->author || info->build)) n++;
-    return n;
+    (void)info;
+    return 3;
 }
 
 void render_default_footer(bool show_back) {
     if (show_back)
-        atc_menu_printf("\r\n" ANSI_DIM
+        menu_printf("\r\n" ANSI_DIM
             "[r] refresh  [b] back  [?] path  [:] cmd"
             ANSI_RESET ANSI_EOL "\r\n");
     else
-        atc_menu_printf("\r\n" ANSI_DIM
+        menu_printf("\r\n" ANSI_DIM
             "[r] refresh  [:] cmd"
             ANSI_RESET ANSI_EOL "\r\n");
 }
 
 void render_status_line(const char *msg) {
-    atc_menu_printf("\r\n" ANSI_DIM SYM_PROMPT "%s" ANSI_EOL ANSI_RESET "\r\n",
+    menu_printf("\r\n" ANSI_DIM SYM_PROMPT "%s" ANSI_EOL ANSI_RESET "\r\n",
                     msg ? msg : "");
     menu_set_status_dirty(true);
 }
 
 void render_park_cursor(int y, bool clear_below) {
-    atc_menu_printf(ANSI_GOTO_FMT, y);
-    if (clear_below) atc_menu_printf("%s", ANSI_CLR_BELOW);
+    menu_printf(ANSI_GOTO_FMT, y);
+    if (clear_below) menu_printf("%s", ANSI_CLR_BELOW);
 }

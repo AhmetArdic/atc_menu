@@ -43,6 +43,9 @@ static bool commit_reject(const char *s) {
     return false;
 }
 
+static int g_choice_commits;
+static void commit_choice_cb(void) { g_choice_commits++; }
+
 int main(void) {
     /* ---------- BAR rendering ---------- */
     static const atc_menu_item_t bar_items[] = {
@@ -53,34 +56,34 @@ int main(void) {
     mock_reset();
     ATC_INIT_ITEMS(bar_items, &mock_port);
     atc_menu_render();
-    EXPECT_CONTAINS(mock_buffer(), "[........]");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\x95        \xe2\x96\x8f"); /* ▕        ▏ */
     EXPECT_CONTAINS(mock_buffer(), "0 %");
-    EXPECT_CONTAINS(mock_buffer(), "ERR");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x9c\x95"); /* ✕ (ERR) */
 
     g_bar_pct = 50;  g_bar_status = ATC_ST_WARN;
     mock_reset();
     atc_menu_render();
-    EXPECT_CONTAINS(mock_buffer(), "[####....]");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\x95\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88    \xe2\x96\x8f"); /* ▕████    ▏ */
     EXPECT_CONTAINS(mock_buffer(), "50 %");
-    EXPECT_CONTAINS(mock_buffer(), "WARN");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\xb2"); /* ▲ (WARN) */
 
     g_bar_pct = 100;  g_bar_status = ATC_ST_OK;
     mock_reset();
     atc_menu_render();
-    EXPECT_CONTAINS(mock_buffer(), "[########]");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\x95\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x8f"); /* ▕████████▏ */
     EXPECT_CONTAINS(mock_buffer(), "100 %");
-    EXPECT_CONTAINS(mock_buffer(), "OK");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x9c\x93"); /* ✓ (OK) */
 
     /* Out-of-range percent clamps; negative -> 0 cells, >100 -> 8 cells. */
     g_bar_pct = -10;  g_bar_status = ATC_ST_OK;
     mock_reset();
     atc_menu_render();
-    EXPECT_CONTAINS(mock_buffer(), "[........]");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\x95        \xe2\x96\x8f"); /* ▕        ▏ */
 
     g_bar_pct = 250;  g_bar_status = ATC_ST_OK;
     mock_reset();
     atc_menu_render();
-    EXPECT_CONTAINS(mock_buffer(), "[########]");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\x95\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x8f"); /* ▕████████▏ */
 
     /* ---------- CHOICE rendering & cycling ---------- */
     choice_idx_3 = 0;
@@ -93,7 +96,7 @@ int main(void) {
     ATC_INIT_ITEMS(choice_items, &mock_port);
     atc_menu_render();
     EXPECT_CONTAINS(mock_buffer(), "ECO");
-    EXPECT_CONTAINS(mock_buffer(), "[");
+    EXPECT_CONTAINS(mock_buffer(), "\xe2\x9d\xae"); /* ❮ (choice left bracket) */
 
     /* First press: ECO -> NORMAL */
     mock_reset();
@@ -112,6 +115,59 @@ int main(void) {
     atc_menu_handle_key('m');
     EXPECT(choice_idx_3 == 0);
     EXPECT_CONTAINS(mock_buffer(), "ECO");
+
+    /* ---------- CHOICE with commit callback: edit mode ---------- */
+    static uint8_t      choice_idx_pwr;
+    static const char *choices_pwr[] = { "ECO", "NORMAL", "TURBO" };
+
+    g_choice_commits = 0;
+    choice_idx_pwr   = 0;
+    static const atc_menu_item_t choice_commit_items[] = {
+        { .type = ATC_ROW_CHOICE, .key = 'p', .label = "Power",
+          .choices = choices_pwr, .choice_count = 3, .choice_idx = &choice_idx_pwr,
+          .choice_commit = commit_choice_cb },
+    };
+    mock_reset();
+    ATC_INIT_ITEMS(choice_commit_items, &mock_port);
+    atc_menu_render();
+    EXPECT_CONTAINS(mock_buffer(), "[r] refresh");
+    EXPECT_CONTAINS(mock_buffer(), "ECO");
+
+    /* First press opens edit mode; choice_idx must NOT mutate. */
+    mock_reset();
+    atc_menu_handle_key('p');
+    EXPECT(choice_idx_pwr == 0);
+    EXPECT_CONTAINS(mock_buffer(), "[Enter] commit");
+    EXPECT_CONTAINS(mock_buffer(), "[Esc] cancel");
+    EXPECT_CONTAINS(mock_buffer(), "ECO");
+
+    /* Cycling pending stays visual; choice_idx still unchanged. */
+    mock_reset();
+    atc_menu_handle_key('p');
+    EXPECT(choice_idx_pwr == 0);
+    EXPECT_CONTAINS(mock_buffer(), "NORMAL");
+    EXPECT(g_choice_commits == 0);
+
+    atc_menu_handle_key('p');
+    EXPECT(choice_idx_pwr == 0);  /* still pending == TURBO, idx untouched */
+
+    /* Esc reverts: idx stays at 0, callback never fires. */
+    atc_menu_handle_key(27);
+    EXPECT(choice_idx_pwr == 0);
+    EXPECT(g_choice_commits == 0);
+
+    /* Re-enter, cycle once to NORMAL, Enter commits idx + invokes callback. */
+    atc_menu_handle_key('p');     /* enter edit mode */
+    atc_menu_handle_key('p');     /* pending -> NORMAL */
+    atc_menu_handle_key('\r');
+    EXPECT(choice_idx_pwr == 1);
+    EXPECT(g_choice_commits == 1);
+
+    /* Footer reverts to default after commit. */
+    mock_reset();
+    atc_menu_render();
+    EXPECT_CONTAINS(mock_buffer(), "[r] refresh");
+    EXPECT_NOT_CONTAINS(mock_buffer(), "[Enter] commit");
 
     /* CHOICE with overlong choice string warns at init. */
     static const char *bad_choices[] = { "OK", "TOO_LONG_STRING" };

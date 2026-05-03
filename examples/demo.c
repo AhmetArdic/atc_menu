@@ -5,48 +5,19 @@
 
 /**
  * @file demo.c
- * @brief End-to-end demo that drives the menu over a Windows serial port.
+ * @brief End-to-end demo driving the menu over a Windows serial port.
  *
- * Demonstrates the native sub-menu pattern: a small home menu shows
- * top-line metrics and acts as a launcher; SUBMENU rows drill into
- * sensor-specific views. The framework keeps the navigation stack and
- * the built-in 'b' key pops back — no thunks or manual back rows here.
+ * Build:  cmake -S . -B build -G "MinGW Makefiles" -DATC_MENU_BUILD_EXAMPLES=ON
+ *         cmake --build build --target demo
+ * Run:    build/examples/demo.exe COM8 [baud]
  *
- * Simulated backends for sensors of varying output count:
+ * Open the same port in an ANSI-capable serial terminal (PuTTY, TeraTerm,
+ * screen) at 115200 8N1 by default. Hotkeys are visible on-screen.
  *
- *   - TMP102-like temp sensor : 1 value
- *   - INA219 power monitor    : 3 values  (Vbus, I, P)
- *   - BME280 environmental    : 4 values  (T, H, P, Alt)
- *   - MPU9250 9-DoF IMU       : 9 values  (3x accel, gyro, mag)
- *
- * ## Build (MinGW)
- *     cmake -S . -B build -G "MinGW Makefiles" -DATC_MENU_BUILD_EXAMPLES=ON
- *     cmake --build build --target demo
- *
- * ## Run
- *     build/examples/demo.exe COM8 [baud]
- *
- * Open the same port in an ANSI-capable serial terminal (PuTTY,
- * TeraTerm, screen, ...) at the matching baud (default 115200) 8N1.
- *
- * ## Hotkeys (home)
- *   t   show MCU temp          L   toggle LED
- *   v   show battery voltage   1   run self-test
- *   e   refresh BME280 group   i   open IMU view
- *   p   open Power view        r   repaint        :   command mode
- *
- * ## Hotkeys (IMU launcher — sub-menu, depth 1)
- *   a   accelerometer page     g   gyroscope page
- *   m   magnetometer page      b   back to home
- *
- * ## Hotkeys (any sub-menu)
- *   b   back to parent         ?   show full path
- *   r   repaint                :   command mode
- *
- * ## Command mode
- *   set temp <C>          override MCU temp
- *   set vbat <V>          override battery voltage
- *   set load <mA>         override INA219 current target (push to WARN/ERR)
+ * Command mode (':'):
+ *   set temp <C>    override MCU temp
+ *   set vbat <V>    override battery voltage
+ *   set load <mA>   override INA219 current target (push to WARN/ERR)
  */
 
 #define WIN32_LEAN_AND_MEAN
@@ -83,12 +54,17 @@ static void rd_led(char *b, size_t n, atc_status_t *st) {
     *st = app_led_on ? ATC_ST_ON : ATC_ST_OFF;
 }
 
-static void act_toggle_led(void) { app_led_on = !app_led_on; }
+static void act_toggle_led(void) {
+    app_led_on = !app_led_on;
+    fprintf(stderr, "  [backend] LED -> %s\n", app_led_on ? "ON" : "OFF");
+}
 
 static void act_self_test(void) {
+    fprintf(stderr, "  [backend] self test running...\n");
     atc_menu_status("self test running...");
     Sleep(300);
     atc_menu_status("self test ok");
+    fprintf(stderr, "  [backend] self test ok\n");
 }
 
 READ_F(ina_v, g_ina.bus_v,      "%.2f", st_range(g_ina.bus_v, 3.0f, 4.2f))
@@ -119,6 +95,13 @@ static unsigned int app_cpu_tick;
 static const char *app_pwr_choices[] = { "ECO", "NORMAL", "TURBO" };
 static const char *app_fan_choices[] = { "AUTO", "LOW", "MED", "HIGH" };
 
+static void commit_pwr_mode(void) {
+    fprintf(stderr, "  [backend] Power mode -> %s\n", app_pwr_choices[app_pwr_mode]);
+}
+static void commit_fan_mode(void) {
+    fprintf(stderr, "  [backend] Fan curve -> %s\n",  app_fan_choices[app_fan_mode]);
+}
+
 static void rd_battery_pct(char *b, size_t n, atc_status_t *st) {
     float v = g_mcu.vbat_v;
     if (v < 3.0f) v = 3.0f;
@@ -145,8 +128,16 @@ static void rd_threshold(char *b, size_t n, atc_status_t *st) {
     *st = ATC_ST_OK;
 }
 
-static bool commit_pwm_duty(const char *s)  { app_pwm_duty     = atol(s); return true; }
-static bool commit_threshold(const char *s) { app_threshold_mv = atol(s); return true; }
+static bool commit_pwm_duty(const char *s) {
+    app_pwm_duty = atol(s);
+    fprintf(stderr, "  [backend] PWM duty -> %ld %%\n", (long)app_pwm_duty);
+    return true;
+}
+static bool commit_threshold(const char *s) {
+    app_threshold_mv = atol(s);
+    fprintf(stderr, "  [backend] Threshold -> %ld mV\n", (long)app_threshold_mv);
+    return true;
+}
 
 static const atc_menu_item_t widgets_menu[] = {
     { .type = ATC_ROW_GROUP,  .label = "Levels (BAR)" },
@@ -157,9 +148,11 @@ static const atc_menu_item_t widgets_menu[] = {
 
     { .type = ATC_ROW_GROUP,  .label = "Modes (CHOICE)" },
     { .type = ATC_ROW_CHOICE, .key = 'm', .label = "Power Mode",
-      .choices = app_pwr_choices, .choice_count = 3, .choice_idx = &app_pwr_mode },
+      .choices = app_pwr_choices, .choice_count = 3, .choice_idx = &app_pwr_mode,
+      .choice_commit = commit_pwr_mode },
     { .type = ATC_ROW_CHOICE, .key = 'f', .label = "Fan Curve",
-      .choices = app_fan_choices, .choice_count = 4, .choice_idx = &app_fan_mode },
+      .choices = app_fan_choices, .choice_count = 4, .choice_idx = &app_fan_mode,
+      .choice_commit = commit_fan_mode },
 
     { .type = ATC_ROW_GROUP,  .label = "Setpoints (INPUT)" },
     { .type = ATC_ROW_INPUT,  .key = 'd', .label = "PWM Duty", .unit = "%",
@@ -175,11 +168,14 @@ static float app_load_target_ma = -1.0f;  /* <0 = use sim default */
 static void app_cmd(const char *line) {
     if (strncmp(line, "set temp ", 9) == 0) {
         g_mcu.mcu_temp_c = (float)atof(line + 9);
+        fprintf(stderr, "  [backend] MCU temp override -> %.1f C\n", g_mcu.mcu_temp_c);
     } else if (strncmp(line, "set vbat ", 9) == 0) {
         g_mcu.vbat_v = (float)atof(line + 9);
+        fprintf(stderr, "  [backend] Vbat override -> %.2f V\n", g_mcu.vbat_v);
     } else if (strncmp(line, "set load ", 9) == 0) {
         app_load_target_ma = (float)atof(line + 9);
         g_ina.current_ma   = app_load_target_ma;
+        fprintf(stderr, "  [backend] INA219 load -> %.0f mA\n", app_load_target_ma);
     } else if (line[0]) {
         atc_menu_status("unknown cmd");
     }

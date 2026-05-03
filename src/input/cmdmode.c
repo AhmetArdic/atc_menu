@@ -19,7 +19,7 @@ bool cmdmode_active(void) { return g_active; }
 void cmdmode_enter(void) {
     g_active = true;
     g_len    = 0;
-    atc_menu_printf("%s", "\r\n" SYM_CMD_PROMPT);
+    menu_printf("%s", "\r\n" SYM_CMD_PROMPT);
 }
 
 void cmdmode_key(char k) {
@@ -43,7 +43,7 @@ void cmdmode_key(char k) {
     if (k == KEY_BS || k == KEY_DEL) {
         if (g_len) {
             g_len--;
-            atc_menu_printf("%s", "\b \b");
+            menu_printf("%s", "\b \b");
         }
         return;
     }

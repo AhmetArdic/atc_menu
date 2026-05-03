@@ -20,8 +20,10 @@
  * the rendered top edge so this test stays sane when layout.h is tuned. */
 static size_t g_box_width;
 
-/* Strip CSI (ESC '[' params final) sequences and return visible length of
- * line @p line_idx from @p src (0-based). Returns 0 if line missing. */
+/* Strip CSI (ESC '[' params final) sequences and return visible display
+ * column count of line @p line_idx from @p src (0-based). UTF-8
+ * continuation bytes (0b10xxxxxx) are skipped so single-cell multi-byte
+ * glyphs count as one column. Returns 0 if line missing. */
 static size_t visible_line_len(const char *src, int line_idx) {
     int    cur   = 0;
     size_t count = 0;
@@ -40,7 +42,8 @@ static size_t visible_line_len(const char *src, int line_idx) {
             continue;
         }
         if (*src == '\r') { src++; continue; }
-        count++;
+        unsigned char c = (unsigned char)*src;
+        if ((c & 0xC0) != 0x80) count++;  /* not a UTF-8 continuation byte */
         src++;
     }
     return cur == line_idx ? count : 0;
