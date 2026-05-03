@@ -12,12 +12,10 @@
 static void render(int zebra_idx, const atc_menu_item_t *it) {
     row_t r;
     row_open(&r, zebra_idx);
-    row_pad(&r);
     row_key(&r, it->key);
     row_gap(&r);
     row_text(&r, ANSI_FG_KEY, SYM_SUBMENU);
     row_cell(&r, MENU_SUBMENU_LABEL_W, NULL, it->label);
-    row_pad(&r);
     row_close(&r);
 }
 

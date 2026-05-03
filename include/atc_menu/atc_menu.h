@@ -120,19 +120,25 @@ typedef struct atc_menu_item {
     atc_action_fn_t action; /**< Action; required for STATE/ACTION. */
     const struct atc_menu_table *submenu; /**< Sub-menu table. Required for SUBMENU. */
 
-    /* CHOICE-specific (used when type == ATC_ROW_CHOICE; ignored otherwise). */
-    const char    **choices;       /**< Array of choice strings (each <= 6 chars). */
-    uint8_t         choice_count;  /**< Number of entries in @ref choices. */
-    uint8_t        *choice_idx;    /**< Pointer to current selection (mutable, app-owned). */
-    atc_action_fn_t choice_commit; /**< Optional. NULL: key cycles+writes immediately.
-                                        Non-NULL: key opens edit mode; Enter commits
-                                        and fires this callback, Esc reverts. */
-
-    /* INPUT-specific (used when type == ATC_ROW_INPUT; ignored otherwise). */
-    atc_input_type_t input_type;   /**< Editor data type. */
-    int32_t          input_min;    /**< Lower bound (INT/HEX). 0 if unused. */
-    int32_t          input_max;    /**< Upper bound (INT/HEX). 0 if unused. */
-    atc_input_fn_t   input_commit; /**< Validated-buffer commit callback. */
+    /* Per-widget extras. Anonymous union: CHOICE and INPUT rows have
+     * disjoint field sets; designated initializer syntax (.choice_count
+     * = 3, .input_min = 0) addresses them directly. */
+    union {
+        struct {
+            const char    **choices;       /**< Array of choice strings (each <= 6 chars). */
+            uint8_t         choice_count;  /**< Number of entries in @ref choices. */
+            uint8_t        *choice_idx;    /**< Pointer to current selection (mutable, app-owned). */
+            atc_action_fn_t choice_commit; /**< Optional. NULL: key cycles+writes immediately.
+                                                Non-NULL: key opens edit mode; Enter commits
+                                                and fires this callback, Esc reverts. */
+        };
+        struct {
+            atc_input_type_t input_type;   /**< Editor data type. */
+            int32_t          input_min;    /**< Lower bound (INT/HEX). 0 if unused. */
+            int32_t          input_max;    /**< Upper bound (INT/HEX). 0 if unused. */
+            atc_input_fn_t   input_commit; /**< Validated-buffer commit callback. */
+        };
+    };
 } atc_menu_item_t;
 
 /**
@@ -189,26 +195,20 @@ typedef struct {
 } atc_menu_port_t;
 
 /**
- * @brief Initialize the menu with a root table and a transport port.
+ * @brief Initialize the menu with a root table, transport port, and
+ *        optional header metadata.
  *
  * Validates the table at startup and emits warnings to the configured
  * port for duplicate hotkeys and missing required callbacks.
  *
  * @param[in] table  Root menu table (must outlive the menu).
  * @param[in] port   Port vtable (must outlive the menu).
+ * @param[in] info   Header metadata, or NULL to use defaults. Must
+ *                   outlive the menu when non-NULL.
  */
 void atc_menu_init(const atc_menu_table_t *table,
-                   const atc_menu_port_t *port);
-
-/**
- * @brief Attach project metadata rendered in the header.
- *
- * Optional. Call once at startup; pass NULL to clear. The pointed-to
- * struct and its strings must outlive the menu.
- *
- * @param[in] info  Metadata to display, or NULL to fall back to defaults.
- */
-void atc_menu_set_info(const atc_menu_info_t *info);
+                   const atc_menu_port_t  *port,
+                   const atc_menu_info_t  *info);
 
 /**
  * @brief Repaint the entire menu in place (flicker-free).

@@ -1,6 +1,6 @@
 # atc_menu
 
-UART üzerinden çalışan, tablo-driven, allocation-free C99 debug menü framework'ü.
+UART üzerinden çalışan, tablo-driven, allocation-free C11 debug menü framework'ü.
 
 ## Özellikler
 
@@ -10,7 +10,7 @@ UART üzerinden çalışan, tablo-driven, allocation-free C99 debug menü framew
 - UTF-8 box drawing + ANSI renk (terminal/font Nerd Font ya da modern Unicode coverage gerektirir)
 - Built-in tuşlar: `r` refresh · `b` back · `?` path · `:` komut modu
 - Native sub-menu (`ATC_ROW_SUBMENU`): çerçeve nav stack'ini kendi yönetir
-- Project metadata header'ı: project / version / author / build (`atc_menu_set_info`)
+- Project metadata header'ı: project / version / author / build (`atc_menu_init`'e geçilir)
 - Per-screen statik notlar: tablo `notes` field'ı (footer'a dim renderle çıkar)
 
 ## Dizin yapısı
@@ -40,10 +40,45 @@ Linux / macOS'ta default generator yeterli — `-G` flag'ini atla.
 
 CMake seçenekleri:
 
-| Option                     | Default | Etki                                |
-|----------------------------|---------|-------------------------------------|
-| `ATC_MENU_BUILD_TESTS`     | `ON`    | `tests/` altındaki CTest hedefleri  |
-| `ATC_MENU_BUILD_EXAMPLES`  | `OFF`   | `examples/demo` (Windows-only)      |
+| Option                     | Default | Etki                                                         |
+|----------------------------|---------|--------------------------------------------------------------|
+| `ATC_MENU_BUILD_TESTS`     | `ON`    | `tests/` altındaki CTest hedefleri                           |
+| `ATC_MENU_BUILD_EXAMPLES`  | `OFF`   | `examples/demo` (Windows-only)                               |
+| `ATC_MENU_WIDGET_BAR`      | `ON`    | `ATC_ROW_BAR` widget'ını derle                               |
+| `ATC_MENU_WIDGET_CHOICE`   | `ON`    | `ATC_ROW_CHOICE` widget'ını derle                            |
+| `ATC_MENU_WIDGET_INPUT`    | `ON`    | `ATC_ROW_INPUT` widget'ını derle                             |
+| `ATC_MENU_INPUT_FLOAT`     | `ON`    | INPUT'ta `ATC_INPUT_FLOAT` parser'ı (`strtod`'u link'e çeker)|
+
+İhtiyaç duyulmayan widget'ları kapatmak kütüphane boyutunu küçültür —
+hepsi `OFF` iken minimal build referans build'in ~%29'unu yer (gömülü
+hedef için anlamlı). Kapalı widget'a karşılık gelen `ATC_ROW_*` satırı
+bir tabloda kullanılırsa init validation `widget_ops()` `NULL` döndürür
+ve satır boş render olur.
+
+### Layout / buffer override'ları
+
+Tüm sütun genişliği ve buffer boyutu sabitleri `src/render/layout.h`
+içinde `#ifndef` guard'ı ile tanımlı; CMake `target_compile_definitions`
+(ya da `-DMENU_X=Y`) ile override edilebilir.
+
+| Define              | Default | Anlam                                       |
+|---------------------|--------:|---------------------------------------------|
+| `MENU_KEY_COL`      |     `1` | Hotkey sütunu genişliği                     |
+| `MENU_LABEL_COL`    |    `24` | Label sütunu genişliği                      |
+| `MENU_VALUE_COL`    |    `10` | Value sütunu genişliği (BAR/CHOICE buna sığar) |
+| `MENU_UNIT_COL`     |     `5` | Unit sütunu genişliği                       |
+| `MENU_STATUS_COL`   |     `1` | Status sembol sütunu                        |
+| `MENU_FIELD_GAP_W`  |     `3` | Sütunlar arası boşluk                       |
+| `MENU_BUF_SIZE`     |    `16` | `read()` çağrısına geçen yığın tampon       |
+| `MENU_CMD_BUF`      |    `64` | Komut modu satır tamponu                    |
+| `MENU_INPUT_BUF`    |    `16` | INPUT widget editör tamponu                 |
+| `MENU_ROW_BUF`      |   `256` | `row_t` derleme tamponu (ANSI dahil)        |
+| `ATC_MENU_STACK_DEPTH` |  `4` | Sub-menu nav stack maksimum derinliği       |
+
+`MENU_INNER_W`, `MENU_GROUP_LABEL_W`, `MENU_SUBMENU_LABEL_W`,
+`MENU_INPUT_EDIT_W`, `MENU_NOTE_W`, `MENU_VALUE_BUF`,
+`MENU_INPUT_EDIT_BUF` yukarıdakilerden türetilir; ayrıca tanımlamaya
+gerek yok.
 
 ## Hızlı başlangıç
 
@@ -77,8 +112,7 @@ static const atc_menu_info_t info = {
     .project = "MyApp", .version = "0.1.0", .author = "me",
 };
 
-atc_menu_set_info(&info);            /* opsiyonel: header metadata */
-atc_menu_init(&home_table, &my_port);
+atc_menu_init(&home_table, &my_port, &info);
 atc_menu_render();
 for (;;) atc_menu_handle_key(uart_getc());
 ```

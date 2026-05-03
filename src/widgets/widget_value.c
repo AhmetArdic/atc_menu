@@ -3,44 +3,16 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "render/render.h"
 #include "widgets/widget.h"
-
-#include <stdio.h>
-#include <string.h>
-
-static void render(int zebra_idx, const atc_menu_item_t *it) {
-    char         val[MENU_BUF_SIZE] = {0};
-    atc_status_t st                 = ATC_ST_NONE;
-    if (it->read) it->read(val, MENU_BUF_SIZE, &st);
-
-    char val_padded[MENU_VALUE_COL + 1];
-    snprintf(val_padded, sizeof val_padded, "%*.*s",
-             MENU_VALUE_COL, MENU_VALUE_COL, val);
-
-    render_cells_t cells = {
-        .key    = it->key,
-        .label  = it->label,
-        .value  = val_padded,
-        .unit   = it->unit,
-        .status = st,
-    };
-    render_row_cells(zebra_idx, &cells);
-}
 
 static void validate(const atc_menu_item_t *it) {
     if (!it->read)
         menu_printf("WARN: ATC_ROW_VALUE '%c' missing read\r\n", it->key);
-    if (it->label && strlen(it->label) > MENU_LABEL_COL)
-        menu_printf("WARN: label '%s' exceeds %d cols\r\n",
-                        it->label, MENU_LABEL_COL);
-    if (it->unit && strlen(it->unit) > MENU_UNIT_COL)
-        menu_printf("WARN: unit '%s' exceeds %d cols\r\n",
-                        it->unit, MENU_UNIT_COL);
+    widget_validate_label_unit(it);
 }
 
 const widget_ops_t widget_value_ops = {
-    .render   = render,
+    .render   = widget_render_scalar,
     .validate = validate,
     .on_key   = NULL,
 };

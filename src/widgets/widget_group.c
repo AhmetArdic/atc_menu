@@ -11,11 +11,9 @@
 static void render(int zebra_idx, const atc_menu_item_t *it) {
     row_t r;
     row_open(&r, zebra_idx);
-    row_pad(&r);
     row_key(&r, it->key);
     row_gap(&r);
     row_cell(&r, MENU_GROUP_LABEL_W, ANSI_BOLD, it->label);
-    row_pad(&r);
     row_close(&r);
 }
 

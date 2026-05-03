@@ -84,9 +84,8 @@ int main(void) {
     static const atc_menu_info_t info = {
         .project = "ATC Menu", .version = "1.0.0",
     };
-    atc_menu_set_info(&info);
     mock_reset();
-    atc_menu_init(&items_tbl, &mock_port);
+    atc_menu_init(&items_tbl, &mock_port, &info);
     mock_reset();
     atc_menu_render();
     fputs(mock_buffer(), stdout);

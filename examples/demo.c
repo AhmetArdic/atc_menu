@@ -349,8 +349,7 @@ int main(int argc, char **argv) {
 
     sensor_sim_init();
 
-    atc_menu_set_info(&demo_info);
-    atc_menu_init(&home_table, &serial_port);
+    atc_menu_init(&home_table, &serial_port, &demo_info);
     atc_menu_render();
     fprintf(stderr, "initial render: %zu B\n", g_tx_bytes);
 

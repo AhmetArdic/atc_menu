@@ -78,10 +78,6 @@ void row_open(row_t *r, int zebra_idx) {
     row_printf(r, ANSI_DIM SYM_BOX_V ANSI_RESET "%s", r->bg);
 }
 
-void row_pad(row_t *r) {
-    if (MENU_PAD_W > 0) row_printf(r, "%*s", MENU_PAD_W, "");
-}
-
 void row_gap(row_t *r) {
     row_printf(r, "%*s", MENU_FIELD_GAP_W, "");
 }
@@ -105,6 +101,21 @@ void row_cell(row_t *r, int width, const char *style, const char *text) {
     if (style && *style) row_printf(r, ANSI_RESET "%s", r->bg);
 }
 
+void row_cell_right(row_t *r, int width, const char *style, const char *text) {
+    if (!text) text = "";
+    int cols = utf8_cols(text);
+    int pad  = width - cols;
+
+    if (style && *style) row_printf(r, "%s", style);
+    if (cols <= width) {
+        if (pad > 0) row_printf(r, "%*s", pad, "");
+        row_printf(r, "%s", text);
+    } else {
+        row_printf(r, "%-*.*s", width, width, text);
+    }
+    if (style && *style) row_printf(r, ANSI_RESET "%s", r->bg);
+}
+
 void row_text(row_t *r, const char *style, const char *text) {
     if (style && *style) row_printf(r, "%s", style);
     row_printf(r, "%s", text ? text : "");
@@ -122,17 +133,15 @@ void render_row_cells(int zebra_idx, const render_cells_t *c) {
 
     row_t r;
     row_open(&r, zebra_idx);
-    row_pad(&r);
     row_key(&r, c->key);
     row_gap(&r);
-    row_cell(&r, MENU_LABEL_COL,  NULL,      c->label);
+    row_cell      (&r, MENU_LABEL_COL,  NULL,      c->label);
     row_gap(&r);
-    row_cell(&r, MENU_VALUE_COL,  vc,        c->value);
+    row_cell_right(&r, MENU_VALUE_COL,  vc,        c->value);
     row_gap(&r);
-    row_cell(&r, MENU_UNIT_COL,   ANSI_DIM,  c->unit);
+    row_cell      (&r, MENU_UNIT_COL,   ANSI_DIM,  c->unit);
     row_gap(&r);
-    row_cell(&r, MENU_STATUS_COL, sd->color, sd->text);
-    row_pad(&r);
+    row_cell      (&r, MENU_STATUS_COL, sd->color, sd->text);
     row_close(&r);
 }
 
@@ -165,9 +174,7 @@ void render_notes_block(const char *const *notes, size_t count) {
     for (size_t i = 0; i < count; i++) {
         row_t r;
         row_open(&r, 0);
-        row_pad(&r);
         row_cell(&r, MENU_NOTE_W, ANSI_DIM, notes[i]);
-        row_pad(&r);
         row_close(&r);
     }
 }
@@ -226,13 +233,11 @@ void render_info_row(const char *l, const char *r,
 
     row_t row;
     row_open(&row, 0);
-    row_pad(&row);
     if (l_color && *l_color) row_printf(&row, "%s", l_color);
     row_printf(&row, "%.*s" ANSI_RESET, lw, l ? l : "");
     row_printf(&row, "%*s", gap, "");
     if (r_color && *r_color) row_printf(&row, "%s", r_color);
     row_printf(&row, "%.*s" ANSI_RESET, rw, r ? r : "");
-    row_pad(&row);
     row_close(&row);
 }
 

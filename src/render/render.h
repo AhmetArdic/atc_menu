@@ -22,13 +22,13 @@ void row_reset (row_t *r);
 void row_flush (row_t *r);
 void row_printf(row_t *r, const char *fmt, ...);
 
-void row_open  (row_t *r, int zebra_idx);
-void row_pad   (row_t *r);
-void row_gap   (row_t *r);
-void row_key   (row_t *r, char k);
-void row_cell  (row_t *r, int width, const char *style, const char *text);
-void row_text  (row_t *r, const char *style, const char *text);
-void row_close (row_t *r);
+void row_open       (row_t *r, int zebra_idx);
+void row_gap        (row_t *r);
+void row_key        (row_t *r, char k);
+void row_cell       (row_t *r, int width, const char *style, const char *text);
+void row_cell_right (row_t *r, int width, const char *style, const char *text);
+void row_text       (row_t *r, const char *style, const char *text);
+void row_close      (row_t *r);
 
 typedef struct {
     char         key;

@@ -27,8 +27,6 @@ enum {
 #define ATC_KEY_PATH    '?'
 #define ATC_KEY_CMD     ':'
 
-const char *reserved_key_role(char k);
-
 const atc_menu_port_t *menu_port(void);
 const atc_menu_info_t *menu_info(void);
 
