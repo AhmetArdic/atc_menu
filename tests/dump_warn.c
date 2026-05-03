@@ -21,7 +21,7 @@ int main(void) {
         .items = bad, .count = sizeof bad / sizeof bad[0],
     };
     mock_reset();
-    atc_menu_init(&bad_tbl, &mock_port);
+    atc_menu_init(&bad_tbl, &mock_port, NULL);
     fputs(mock_buffer(), stdout);
     return 0;
 }

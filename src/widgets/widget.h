@@ -28,6 +28,13 @@ typedef struct {
 
 const widget_ops_t *widget_ops(atc_row_type_t type);
 
+/* Shared scalar render: read() into MENU_VALUE_COL right-aligned cell.
+ * Suitable for VALUE / STATE / ACTION (read==NULL) / INPUT in normal mode. */
+void widget_render_scalar(int zebra_idx, const atc_menu_item_t *it);
+
+/* Emit overflow warnings for label > MENU_LABEL_COL and unit > MENU_UNIT_COL. */
+void widget_validate_label_unit(const atc_menu_item_t *it);
+
 bool widget_input_active(void);
 void widget_input_render_footer(void);
 void widget_input_key(char k);

@@ -131,7 +131,7 @@ int main(void) {
         .notes = long_root_notes, .note_count = 1,
     };
     mock_reset();
-    atc_menu_init(&notes_root_tbl, &mock_port);
+    atc_menu_init(&notes_root_tbl, &mock_port, NULL);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
     EXPECT_CONTAINS(mock_buffer(), "note exceeds");
 
@@ -161,7 +161,7 @@ int main(void) {
         .notes = ok_notes, .note_count = 1,
     };
     mock_reset();
-    atc_menu_init(&ok_tbl, &mock_port);
+    atc_menu_init(&ok_tbl, &mock_port, NULL);
     EXPECT_NOT_CONTAINS(mock_buffer(), "note exceeds");
 
     TEST_RESULT();

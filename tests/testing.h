@@ -29,7 +29,7 @@
             .items = (items_arr),                                          \
             .count = sizeof(items_arr) / sizeof((items_arr)[0]),           \
         };                                                                 \
-        atc_menu_init(&_atc_tbl_, (port));                                 \
+        atc_menu_init(&_atc_tbl_, (port), NULL);                           \
     } while (0)
 
 static int testing_failures_;

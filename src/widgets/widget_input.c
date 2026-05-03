@@ -11,37 +11,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-static bool                   g_active;
-static char                   g_buf[MENU_INPUT_BUF];
-static uint8_t                g_pos;
-static const atc_menu_item_t *g_item;
+static struct {
+    bool                          active;
+    uint8_t                       pos;
+    char                          buf[MENU_INPUT_BUF];
+    const atc_menu_item_t        *item;
+} S;
 
-bool widget_input_active(void) { return g_active; }
+bool widget_input_active(void) { return S.active; }
 
 void widget_input_reset(void) {
-    g_active = false;
-    g_pos    = 0;
-    g_buf[0] = '\0';
-    g_item   = NULL;
-}
-
-static void render_normal(int zebra_idx, const atc_menu_item_t *it) {
-    char         val[MENU_BUF_SIZE] = {0};
-    atc_status_t st                 = ATC_ST_NONE;
-    if (it->read) it->read(val, MENU_BUF_SIZE, &st);
-
-    char val_padded[MENU_VALUE_COL + 1];
-    snprintf(val_padded, sizeof val_padded, "%*.*s",
-             MENU_VALUE_COL, MENU_VALUE_COL, val);
-
-    render_cells_t cells = {
-        .key    = it->key,
-        .label  = it->label,
-        .value  = val_padded,
-        .unit   = it->unit,
-        .status = st,
-    };
-    render_row_cells(zebra_idx, &cells);
+    S.active = false;
+    S.pos    = 0;
+    S.buf[0] = '\0';
+    S.item   = NULL;
 }
 
 static void render_active(int zebra_idx, const atc_menu_item_t *it) {
@@ -52,10 +35,10 @@ static void render_active(int zebra_idx, const atc_menu_item_t *it) {
     int n = snprintf(edit + ep, cap - ep, "%s", SYM_INPUT_PROMPT);
     if (n > 0 && (size_t)n < cap - ep) ep += (size_t)n;
 
-    size_t copy = g_pos;
+    size_t copy = S.pos;
     if (copy > cap - ep - sizeof SYM_INPUT_CURSOR - 1)
         copy = cap - ep - sizeof SYM_INPUT_CURSOR - 1;
-    memcpy(edit + ep, g_buf, copy);
+    memcpy(edit + ep, S.buf, copy);
     ep += copy;
 
     n = snprintf(edit + ep, cap - ep, "%s", SYM_INPUT_CURSOR);
@@ -64,29 +47,27 @@ static void render_active(int zebra_idx, const atc_menu_item_t *it) {
 
     row_t r;
     row_open(&r, zebra_idx);
-    row_pad(&r);
     row_key(&r, it->key);
     row_gap(&r);
     row_cell(&r, MENU_LABEL_COL,    NULL,         it->label);
     row_gap(&r);
     row_cell(&r, MENU_INPUT_EDIT_W, ANSI_FG_VAL,  edit);
-    row_pad(&r);
     row_close(&r);
 }
 
 static void render(int zebra_idx, const atc_menu_item_t *it) {
-    if (g_active && g_item == it) render_active(zebra_idx, it);
-    else                          render_normal(zebra_idx, it);
+    if (S.active && S.item == it) render_active(zebra_idx, it);
+    else                          widget_render_scalar(zebra_idx, it);
 }
 
 void widget_input_render_footer(void) {
-    if (!g_item) return;
-    if (g_item->input_type == ATC_INPUT_INT
-     || g_item->input_type == ATC_INPUT_HEX) {
+    if (!S.item) return;
+    if (S.item->input_type == ATC_INPUT_INT
+     || S.item->input_type == ATC_INPUT_HEX) {
         menu_printf("\r\n" ANSI_DIM
             "[Enter] commit  [Esc] cancel  [BS] erase    range: %ld..%ld"
             ANSI_RESET ANSI_EOL "\r\n",
-            (long)g_item->input_min, (long)g_item->input_max);
+            (long)S.item->input_min, (long)S.item->input_max);
     } else {
         menu_printf("\r\n" ANSI_DIM
             "[Enter] commit  [Esc] cancel  [BS] erase"
@@ -98,47 +79,55 @@ static bool char_acceptable(atc_input_type_t t, char k) {
     switch (t) {
         case ATC_INPUT_INT:
             return (k >= '0' && k <= '9') || k == '-';
+#if ATC_MENU_INPUT_FLOAT
         case ATC_INPUT_FLOAT:
             return (k >= '0' && k <= '9') || k == '-' || k == '.';
+#endif
         case ATC_INPUT_HEX:
             return (k >= '0' && k <= '9') || (k >= 'a' && k <= 'f')
                 || (k >= 'A' && k <= 'F') || k == 'x' || k == 'X';
         case ATC_INPUT_STR:
             return k >= 32 && k <= 126;
+        default:
+            return false;
     }
-    return false;
 }
 
 static bool validate_buffer(void) {
-    if (g_pos == 0) {
+    if (S.pos == 0) {
         atc_menu_status("invalid: empty");
         return false;
     }
-    g_buf[g_pos] = '\0';
+    S.buf[S.pos] = '\0';
 
-    if (g_item->input_type == ATC_INPUT_STR) return true;
+    if (S.item->input_type == ATC_INPUT_STR) return true;
 
     char *end = NULL;
     long  v   = 0;
     errno = 0;
-    if (g_item->input_type == ATC_INPUT_HEX) {
-        v = strtol(g_buf, &end, 16);
-    } else if (g_item->input_type == ATC_INPUT_INT) {
-        v = strtol(g_buf, &end, 10);
+    if (S.item->input_type == ATC_INPUT_HEX) {
+        v = strtol(S.buf, &end, 16);
+    } else if (S.item->input_type == ATC_INPUT_INT) {
+        v = strtol(S.buf, &end, 10);
     } else {
-        v = (long)strtod(g_buf, &end);
+#if ATC_MENU_INPUT_FLOAT
+        v = (long)strtod(S.buf, &end);
+#else
+        atc_menu_status("invalid: FLOAT input not enabled");
+        return false;
+#endif
     }
 
-    if (errno == ERANGE || end == g_buf || (end && *end != '\0')) {
+    if (errno == ERANGE || end == S.buf || (end && *end != '\0')) {
         atc_menu_status("invalid: parse error");
         return false;
     }
-    if (g_item->input_type == ATC_INPUT_INT
-     || g_item->input_type == ATC_INPUT_HEX) {
-        if (v < g_item->input_min || v > g_item->input_max) {
+    if (S.item->input_type == ATC_INPUT_INT
+     || S.item->input_type == ATC_INPUT_HEX) {
+        if (v < S.item->input_min || v > S.item->input_max) {
             char msg[64];
             snprintf(msg, sizeof msg, "out of range: %ld..%ld",
-                     (long)g_item->input_min, (long)g_item->input_max);
+                     (long)S.item->input_min, (long)S.item->input_max);
             atc_menu_status(msg);
             return false;
         }
@@ -147,11 +136,11 @@ static bool validate_buffer(void) {
 }
 
 void widget_input_key(char k) {
-    if (!g_active || !g_item) return;
+    if (!S.active || !S.item) return;
 
     if (k == '\r' || k == '\n') {
         if (!validate_buffer()) return;
-        bool accepted = !g_item->input_commit || g_item->input_commit(g_buf);
+        bool accepted = !S.item->input_commit || S.item->input_commit(S.buf);
         if (accepted) widget_input_reset();
         atc_menu_render();
         return;
@@ -162,17 +151,17 @@ void widget_input_key(char k) {
         return;
     }
     if (k == KEY_BS || k == KEY_DEL) {
-        if (g_pos) {
-            g_pos--;
-            g_buf[g_pos] = '\0';
+        if (S.pos) {
+            S.pos--;
+            S.buf[S.pos] = '\0';
             atc_menu_render();
         }
         return;
     }
-    if (g_pos < sizeof g_buf - 1
-        && char_acceptable(g_item->input_type, k)) {
-        g_buf[g_pos++] = k;
-        g_buf[g_pos]   = '\0';
+    if (S.pos < sizeof S.buf - 1
+        && char_acceptable(S.item->input_type, k)) {
+        S.buf[S.pos++] = k;
+        S.buf[S.pos]   = '\0';
         atc_menu_render();
     }
 }
@@ -184,14 +173,15 @@ static void validate(const atc_menu_item_t *it) {
     if ((it->input_type == ATC_INPUT_INT || it->input_type == ATC_INPUT_HEX)
         && it->input_min > it->input_max)
         menu_printf("WARN: ATC_ROW_INPUT '%c' min > max\r\n", it->key);
+    widget_validate_label_unit(it);
 }
 
 static void on_key(const atc_menu_item_t *it, size_t index) {
     (void)index;
-    g_active = true;
-    g_pos    = 0;
-    g_buf[0] = '\0';
-    g_item   = it;
+    S.active = true;
+    S.pos    = 0;
+    S.buf[0] = '\0';
+    S.item   = it;
     atc_menu_render();
 }
 

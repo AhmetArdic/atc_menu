@@ -1,12 +1,17 @@
 cmake_minimum_required(VERSION 3.15)
 project(atc_menu C)
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 option(ATC_MENU_BUILD_TESTS    "Build unit tests"  ON)
 option(ATC_MENU_BUILD_EXAMPLES "Build example app" OFF)
+
+option(ATC_MENU_WIDGET_BAR    "Enable BAR widget"    ON)
+option(ATC_MENU_WIDGET_CHOICE "Enable CHOICE widget" ON)
+option(ATC_MENU_WIDGET_INPUT  "Enable INPUT widget"  ON)
+option(ATC_MENU_INPUT_FLOAT   "Enable FLOAT input parser (pulls strtod)" ON)
 
 # ---------------------------------------------------------------------------
 # Core library
@@ -22,16 +27,30 @@ add_library(atc_menu STATIC
     src/widgets/widget_value.c
     src/widgets/widget_state.c
     src/widgets/widget_action.c
-    src/widgets/widget_bar.c
-    src/widgets/widget_choice.c
-    src/widgets/widget_input.c
 )
+
+if(ATC_MENU_WIDGET_BAR)
+    target_sources(atc_menu PRIVATE src/widgets/widget_bar.c)
+endif()
+if(ATC_MENU_WIDGET_CHOICE)
+    target_sources(atc_menu PRIVATE src/widgets/widget_choice.c)
+endif()
+if(ATC_MENU_WIDGET_INPUT)
+    target_sources(atc_menu PRIVATE src/widgets/widget_input.c)
+endif()
 
 target_include_directories(atc_menu
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_compile_definitions(atc_menu PUBLIC
+    ATC_MENU_WIDGET_BAR=$<BOOL:${ATC_MENU_WIDGET_BAR}>
+    ATC_MENU_WIDGET_CHOICE=$<BOOL:${ATC_MENU_WIDGET_CHOICE}>
+    ATC_MENU_WIDGET_INPUT=$<BOOL:${ATC_MENU_WIDGET_INPUT}>
+    ATC_MENU_INPUT_FLOAT=$<BOOL:${ATC_MENU_INPUT_FLOAT}>
 )
 
 target_compile_options(atc_menu PRIVATE

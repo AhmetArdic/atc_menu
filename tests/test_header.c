@@ -54,8 +54,10 @@ static const atc_menu_item_t one_row[] = {
 };
 
 static void render_with_info(const atc_menu_info_t *info) {
-    atc_menu_set_info(info);
-    ATC_INIT_ITEMS(one_row, &mock_port);
+    static const atc_menu_table_t tbl = {
+        .items = one_row, .count = sizeof one_row / sizeof one_row[0],
+    };
+    atc_menu_init(&tbl, &mock_port, info);
     mock_reset();
     atc_menu_render();
 }
@@ -147,6 +149,5 @@ int main(void) {
     render_with_info(&long_meta);
     EXPECT(visible_line_len(mock_buffer(), 1) == g_box_width);
 
-    atc_menu_set_info(NULL);
     TEST_RESULT();
 }

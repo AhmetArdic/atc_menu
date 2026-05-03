@@ -11,11 +11,17 @@ atc_add_test(test_init)
 atc_add_test(test_handle_key)
 atc_add_test(test_render)
 atc_add_test(test_header)
-atc_add_test(test_widgets)
+
+# test_widgets exercises BAR / CHOICE / INPUT — only build with all enabled.
+if(ATC_MENU_WIDGET_BAR AND ATC_MENU_WIDGET_CHOICE AND ATC_MENU_WIDGET_INPUT)
+    atc_add_test(test_widgets)
+endif()
 
 # Visual-inspection dumps (not CTest targets — run by hand to eyeball output).
-add_executable(dump_render dump_render.c)
-target_link_libraries(dump_render PRIVATE atc_menu_mock)
+if(ATC_MENU_WIDGET_BAR AND ATC_MENU_WIDGET_CHOICE AND ATC_MENU_WIDGET_INPUT)
+    add_executable(dump_render dump_render.c)
+    target_link_libraries(dump_render PRIVATE atc_menu_mock)
+endif()
 
 add_executable(dump_warn dump_warn.c)
 target_link_libraries(dump_warn PRIVATE atc_menu_mock)

@@ -163,7 +163,7 @@ int main(void) {
     };
 
     mock_reset();
-    atc_menu_init(&notes_root, &mock_port);
+    atc_menu_init(&notes_root, &mock_port, NULL);
     mock_reset();
     atc_menu_render();
     out = mock_buffer();
@@ -194,7 +194,7 @@ int main(void) {
         .items = no_notes_items, .count = 1,
     };
     mock_reset();
-    atc_menu_init(&no_notes_tbl, &mock_port);
+    atc_menu_init(&no_notes_tbl, &mock_port, NULL);
     mock_reset();
     atc_menu_render();
     EXPECT_NOT_CONTAINS(mock_buffer(), "ROOT_NOTE_LINE");

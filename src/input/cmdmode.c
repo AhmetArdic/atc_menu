@@ -5,20 +5,22 @@
 
 #include "input/cmdmode.h"
 
-static bool   g_active;
-static char   g_buf[MENU_CMD_BUF];
-static size_t g_len;
+static struct {
+    bool   active;
+    char   buf[MENU_CMD_BUF];
+    size_t len;
+} S;
 
 void cmdmode_reset(void) {
-    g_active = false;
-    g_len    = 0;
+    S.active = false;
+    S.len    = 0;
 }
 
-bool cmdmode_active(void) { return g_active; }
+bool cmdmode_active(void) { return S.active; }
 
 void cmdmode_enter(void) {
-    g_active = true;
-    g_len    = 0;
+    S.active = true;
+    S.len    = 0;
     menu_printf("%s", "\r\n" SYM_CMD_PROMPT);
 }
 
@@ -27,28 +29,26 @@ void cmdmode_key(char k) {
     if (!port) return;
 
     if (k == '\r' || k == '\n') {
-        g_buf[g_len] = '\0';
-        g_active     = false;
-        if (port->cmd) port->cmd(g_buf);
-        g_len = 0;
+        S.buf[S.len] = '\0';
+        cmdmode_reset();
+        if (port->cmd) port->cmd(S.buf);
         atc_menu_render();
         return;
     }
     if (k == KEY_ESC) {
-        g_active = false;
-        g_len    = 0;
+        cmdmode_reset();
         menu_park_cursor();
         return;
     }
     if (k == KEY_BS || k == KEY_DEL) {
-        if (g_len) {
-            g_len--;
+        if (S.len) {
+            S.len--;
             menu_printf("%s", "\b \b");
         }
         return;
     }
-    if (g_len < sizeof g_buf - 1) {
-        g_buf[g_len++] = k;
+    if (S.len < sizeof S.buf - 1) {
+        S.buf[S.len++] = k;
         port->write(&k, 1);
     }
 }

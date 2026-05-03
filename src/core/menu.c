@@ -26,13 +26,16 @@ const atc_menu_info_t *menu_info(void) { return g_info; }
 bool menu_status_dirty(void)            { return g_status_dirty; }
 void menu_set_status_dirty(bool dirty)  { g_status_dirty = dirty; }
 
-const char *reserved_key_role(char k) {
-    switch (k) {
-        case ATC_KEY_REFRESH: return "built-in refresh";
-        case ATC_KEY_BACK:    return "built-in back";
-        case ATC_KEY_PATH:    return "built-in path";
-        case ATC_KEY_CMD:     return "built-in cmd";
-    }
+static const struct { char key; const char *role; } RESERVED[] = {
+    { ATC_KEY_REFRESH, "built-in refresh" },
+    { ATC_KEY_BACK,    "built-in back"    },
+    { ATC_KEY_PATH,    "built-in path"    },
+    { ATC_KEY_CMD,     "built-in cmd"     },
+};
+
+static const char *reserved_role(char k) {
+    for (size_t i = 0; i < sizeof RESERVED / sizeof RESERVED[0]; i++)
+        if (RESERVED[i].key == k) return RESERVED[i].role;
     return NULL;
 }
 
@@ -86,8 +89,6 @@ void menu_render_group_span(size_t start) {
     menu_park_cursor();
 }
 
-void atc_menu_set_info(const atc_menu_info_t *info) { g_info = info; }
-
 void atc_menu_render(void) {
     if (!nav_items() || !g_port) return;
 
@@ -114,8 +115,10 @@ void atc_menu_status(const char *msg) {
 }
 
 void atc_menu_init(const atc_menu_table_t *table,
-                   const atc_menu_port_t *port) {
+                   const atc_menu_port_t  *port,
+                   const atc_menu_info_t  *info) {
     g_port         = port;
+    g_info         = info;
     g_status_dirty = false;
 
     cmdmode_reset();
@@ -133,7 +136,7 @@ void atc_menu_init(const atc_menu_table_t *table,
         const atc_menu_item_t *a = &items[i];
 
         if (a->key) {
-            const char *role = reserved_key_role(a->key);
+            const char *role = reserved_role(a->key);
             if (role)
                 menu_printf("WARN: key '%c' collides with %s\r\n",
                                 a->key, role);
@@ -152,24 +155,34 @@ void atc_menu_init(const atc_menu_table_t *table,
 void atc_menu_handle_key(char k) {
     if (!nav_items() || !g_port) return;
 
-    if (cmdmode_active())       { cmdmode_key(k);      return; }
+    if (cmdmode_active())       { cmdmode_key(k);       return; }
     if (widget_input_active())  { widget_input_key(k);  return; }
     if (widget_choice_active()) { widget_choice_key(k); return; }
 
-    if (k == ATC_KEY_CMD && g_port->cmd) {
-        atc_menu_render();
-        cmdmode_enter();
-        return;
-    }
-    if (k == ATC_KEY_REFRESH)            { atc_menu_render(); return; }
-    if (k == ATC_KEY_BACK && nav_depth() > 0) {
-        nav_pop();
-        atc_menu_render();
-        return;
-    }
-    if (k == ATC_KEY_PATH && nav_depth() > 0) {
-        nav_show_path();
-        return;
+    switch (k) {
+        case ATC_KEY_REFRESH:
+            atc_menu_render();
+            return;
+        case ATC_KEY_CMD:
+            if (g_port->cmd) {
+                atc_menu_render();
+                cmdmode_enter();
+                return;
+            }
+            break;
+        case ATC_KEY_BACK:
+            if (nav_depth() > 0) {
+                nav_pop();
+                atc_menu_render();
+                return;
+            }
+            break;
+        case ATC_KEY_PATH:
+            if (nav_depth() > 0) {
+                nav_show_path();
+                return;
+            }
+            break;
     }
 
     g_status_dirty = false;

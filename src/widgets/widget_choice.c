@@ -11,18 +11,20 @@
 
 #define WIDGET_CHOICE_STR_MAX  (MENU_VALUE_COL - 4)
 
-static bool                   g_active;
-static uint8_t                g_pending_idx;
-static size_t                 g_index;
-static const atc_menu_item_t *g_item;
+static struct {
+    bool                          active;
+    uint8_t                       pending_idx;
+    size_t                        index;
+    const atc_menu_item_t        *item;
+} S;
 
-bool widget_choice_active(void) { return g_active; }
+bool widget_choice_active(void) { return S.active; }
 
 void widget_choice_reset(void) {
-    g_active      = false;
-    g_pending_idx = 0;
-    g_index       = 0;
-    g_item        = NULL;
+    S.active      = false;
+    S.pending_idx = 0;
+    S.index       = 0;
+    S.item        = NULL;
 }
 
 static const char *choice_str(const atc_menu_item_t *it, uint8_t idx) {
@@ -54,8 +56,8 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
         it->read(tmp, MENU_BUF_SIZE, &st);
     }
 
-    bool        editing = (g_active && g_item == it);
-    const char *sel     = editing ? choice_str(it, g_pending_idx) : current_choice(it);
+    bool        editing = (S.active && S.item == it);
+    const char *sel     = editing ? choice_str(it, S.pending_idx) : current_choice(it);
 
     char box[MENU_VALUE_BUF];
     format_choice_box(sel, box, sizeof box);
@@ -72,10 +74,10 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
 }
 
 void widget_choice_render_footer(void) {
-    if (!g_item) return;
+    if (!S.item) return;
     menu_printf("\r\n" ANSI_DIM
         "[%c] cycle  [Enter] commit  [Esc] cancel"
-        ANSI_RESET ANSI_EOL "\r\n", g_item->key);
+        ANSI_RESET ANSI_EOL "\r\n", S.item->key);
 }
 
 static void validate(const atc_menu_item_t *it) {
@@ -94,10 +96,10 @@ static void on_key(const atc_menu_item_t *it, size_t index) {
     if (!it->choice_idx || it->choice_count == 0) return;
 
     if (it->choice_commit) {
-        g_active      = true;
-        g_item        = it;
-        g_index       = index;
-        g_pending_idx = *it->choice_idx;
+        S.active      = true;
+        S.item        = it;
+        S.index       = index;
+        S.pending_idx = *it->choice_idx;
         atc_menu_render();
         return;
     }
@@ -107,11 +109,11 @@ static void on_key(const atc_menu_item_t *it, size_t index) {
 }
 
 void widget_choice_key(char k) {
-    if (!g_active || !g_item) return;
+    if (!S.active || !S.item) return;
 
     if (k == '\r' || k == '\n') {
-        *g_item->choice_idx = g_pending_idx;
-        atc_action_fn_t cb  = g_item->choice_commit;
+        *S.item->choice_idx = S.pending_idx;
+        atc_action_fn_t cb  = S.item->choice_commit;
         widget_choice_reset();
         if (cb) cb();
         atc_menu_render();
@@ -122,9 +124,9 @@ void widget_choice_key(char k) {
         atc_menu_render();
         return;
     }
-    if (k == g_item->key) {
-        g_pending_idx = (uint8_t)((g_pending_idx + 1) % g_item->choice_count);
-        menu_render_row_at(g_index);
+    if (k == S.item->key) {
+        S.pending_idx = (uint8_t)((S.pending_idx + 1) % S.item->choice_count);
+        menu_render_row_at(S.index);
     }
 }
 
