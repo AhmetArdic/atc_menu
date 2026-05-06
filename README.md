@@ -23,7 +23,7 @@ src/input/                      nav + komut modu
 src/widgets/                    her row tipi için bir .c
 ports/mock/                     test için TX + cmd capture portu
 tests/                          CTest unit testleri
-examples/demo.c                 Windows serial demo
+examples/demo.c                 Serial demo (Windows + POSIX)
 ```
 
 ## Build & test
@@ -43,7 +43,7 @@ CMake seçenekleri:
 | Option                     | Default | Etki                                                         |
 |----------------------------|---------|--------------------------------------------------------------|
 | `ATC_MENU_BUILD_TESTS`     | `ON`    | `tests/` altındaki CTest hedefleri                           |
-| `ATC_MENU_BUILD_EXAMPLES`  | `OFF`   | `examples/demo` (Windows-only)                               |
+| `ATC_MENU_BUILD_EXAMPLES`  | `OFF`   | `examples/demo` (Windows + Linux/macOS serial)               |
 | `ATC_MENU_WIDGET_BAR`      | `ON`    | `ATC_ROW_BAR` widget'ını derle                               |
 | `ATC_MENU_WIDGET_CHOICE`   | `ON`    | `ATC_ROW_CHOICE` widget'ını derle                            |
 | `ATC_MENU_WIDGET_INPUT`    | `ON`    | `ATC_ROW_INPUT` widget'ını derle                             |
@@ -121,7 +121,9 @@ Yeni transport eklemek = `atc_menu_port_t` içine `write` (ve isteğe bağlı
 `cmd`) implemente etmek. Yeni satır eklemek = tabloya bir entry + bir
 read/action callback.
 
-## Serial demo (Windows)
+## Serial demo
+
+Windows (MinGW):
 
 ```
 cmake -S . -B build -G "MinGW Makefiles" -DATC_MENU_BUILD_EXAMPLES=ON
@@ -130,7 +132,25 @@ build/examples/demo.exe COM8        # veya başka bir COM portu
 build/examples/demo.exe COM3 9600   # opsiyonel baud override (default 115200 8N1)
 ```
 
-PuTTY / TeraTerm ile aynı portu aç. Demo home menüde Quick view + BME280
+Linux / macOS:
+
+```
+cmake -S . -B build -DATC_MENU_BUILD_EXAMPLES=ON
+cmake --build build --target demo
+build/examples/demo /dev/ttyUSB0          # veya /dev/ttyACM0, /dev/tty.usbserial-*, ...
+build/examples/demo /dev/ttyUSB0 9600     # opsiyonel baud override (default 115200 8N1)
+```
+
+Donanımsız test için `socat` ile sanal seri çift oluştur, bir ucunu demo'ya
+diğerini terminale ver:
+
+```
+socat -d -d pty,raw,echo=0 pty,raw,echo=0   # /dev/pts/<a> ve /dev/pts/<b> üretir
+build/examples/demo /dev/pts/<a>            # ilk terminal
+screen /dev/pts/<b> 115200                  # ikinci terminal (picocom/minicom de olur)
+```
+
+Windows tarafında PuTTY / TeraTerm ile aynı portu aç. Demo home menüde Quick view + BME280
 Env satırlarını inline gösterir; IMU / Power / Visual Widgets sayfaları
 SUBMENU drill-down ile açılır. IMU sayfası kendi içinde Accel/Gyro/Mag
 sub-page'lerine ayrılır (2 derinlik). Sub-menüde `b` parent'a döner, `?`

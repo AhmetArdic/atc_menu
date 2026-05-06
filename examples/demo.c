@@ -5,14 +5,26 @@
 
 /**
  * @file demo.c
- * @brief End-to-end demo driving the menu over a Windows serial port.
+ * @brief End-to-end demo driving the menu over a serial port (Windows + POSIX).
  *
- * Build:  cmake -S . -B build -G "MinGW Makefiles" -DATC_MENU_BUILD_EXAMPLES=ON
- *         cmake --build build --target demo
- * Run:    build/examples/demo.exe COM8 [baud]
+ * Build (Windows):
+ *   cmake -S . -B build -G "MinGW Makefiles" -DATC_MENU_BUILD_EXAMPLES=ON
+ *   cmake --build build --target demo
+ *   build/examples/demo.exe COM8 [baud]
  *
- * Open the same port in an ANSI-capable serial terminal (PuTTY, TeraTerm,
- * screen) at 115200 8N1 by default. Hotkeys are visible on-screen.
+ * Build (Linux):
+ *   cmake -S . -B build -DATC_MENU_BUILD_EXAMPLES=ON
+ *   cmake --build build --target demo
+ *   build/examples/demo /dev/ttyUSB0 [baud]
+ *
+ * To try it without hardware on Linux, create a virtual serial pair with
+ * socat and connect a terminal to the other end:
+ *   socat -d -d pty,raw,echo=0 pty,raw,echo=0
+ *   build/examples/demo /dev/pts/<a>
+ *   screen /dev/pts/<b> 115200
+ *
+ * Open the port in an ANSI-capable serial terminal (PuTTY, TeraTerm, screen,
+ * picocom, minicom) at 115200 8N1 by default. Hotkeys are visible on-screen.
  *
  * Command mode (':'):
  *   set temp <C>    override MCU temp
@@ -20,8 +32,23 @@
  *   set load <mA>   override INA219 current target (push to WARN/ERR)
  */
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+#else
+   /* Expose POSIX (nanosleep) and BSD (cfmakeraw) extensions under strict C11. */
+#  ifndef _DEFAULT_SOURCE
+#    define _DEFAULT_SOURCE
+#  endif
+#  ifndef _POSIX_C_SOURCE
+#    define _POSIX_C_SOURCE 200809L
+#  endif
+#  include <errno.h>
+#  include <fcntl.h>
+#  include <termios.h>
+#  include <time.h>
+#  include <unistd.h>
+#endif
 
 #include "atc_menu/atc_menu.h"
 #include "sensor_helpers.h"
@@ -32,9 +59,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void sleep_ms(unsigned ms) {
+#ifdef _WIN32
+    Sleep(ms);
+#else
+    struct timespec ts = { .tv_sec = ms / 1000, .tv_nsec = (long)(ms % 1000) * 1000000L };
+    nanosleep(&ts, NULL);
+#endif
+}
+
 #define ARR_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
+#ifdef _WIN32
 static HANDLE g_serial = INVALID_HANDLE_VALUE;
+#else
+static int    g_serial = -1;
+#endif
 static size_t g_tx_bytes;
 
 static bool app_led_on;
@@ -62,7 +102,7 @@ static void act_toggle_led(void) {
 static void act_self_test(void) {
     fprintf(stderr, "  [backend] self test running...\n");
     atc_menu_status("self test running...");
-    Sleep(300);
+    sleep_ms(300);
     atc_menu_status("self test ok");
     fprintf(stderr, "  [backend] self test ok\n");
 }
@@ -293,8 +333,20 @@ static const atc_menu_table_t home_table = {
 
 static void com_write(const char *buf, size_t len) {
     g_tx_bytes += len;
+#ifdef _WIN32
     DWORD written = 0;
     WriteFile(g_serial, buf, (DWORD)len, &written, NULL);
+#else
+    size_t off = 0;
+    while (off < len) {
+        ssize_t n = write(g_serial, buf + off, len - off);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+        off += (size_t)n;
+    }
+#endif
 }
 
 static const atc_menu_port_t serial_port = {
@@ -302,7 +354,9 @@ static const atc_menu_port_t serial_port = {
     .cmd   = app_cmd,
 };
 
-static bool serial_open(const char *port, DWORD baud) {
+#ifdef _WIN32
+
+static bool serial_open(const char *port, unsigned baud) {
     char path[32];
     snprintf(path, sizeof path, "\\\\.\\%s", port);
 
@@ -339,12 +393,90 @@ static bool serial_open(const char *port, DWORD baud) {
     return true;
 }
 
+static int serial_read_byte(char *out) {
+    DWORD nread = 0;
+    if (ReadFile(g_serial, out, 1, &nread, NULL) && nread == 1) return 1;
+    return 0;
+}
+
+#else  /* POSIX */
+
+static speed_t baud_to_speed(unsigned baud) {
+    switch (baud) {
+    case 9600:   return B9600;
+    case 19200:  return B19200;
+    case 38400:  return B38400;
+    case 57600:  return B57600;
+    case 115200: return B115200;
+    case 230400: return B230400;
+#ifdef B460800
+    case 460800: return B460800;
+#endif
+#ifdef B921600
+    case 921600: return B921600;
+#endif
+    default:     return 0;
+    }
+}
+
+static bool serial_open(const char *port, unsigned baud) {
+    g_serial = open(port, O_RDWR | O_NOCTTY);
+    if (g_serial < 0) {
+        fprintf(stderr, "open %s failed: %s\n", port, strerror(errno));
+        return false;
+    }
+
+    struct termios tio;
+    if (tcgetattr(g_serial, &tio) != 0) {
+        fprintf(stderr, "tcgetattr failed: %s\n", strerror(errno));
+        return false;
+    }
+
+    cfmakeraw(&tio);
+    tio.c_cflag |=  (CLOCAL | CREAD);
+    tio.c_cflag &= ~(CSTOPB | PARENB | CSIZE);
+    tio.c_cflag |=  CS8;
+#ifdef CRTSCTS
+    tio.c_cflag &= ~CRTSCTS;
+#endif
+
+    speed_t s = baud_to_speed(baud);
+    if (s == 0) {
+        fprintf(stderr, "unsupported baud: %u\n", baud);
+        return false;
+    }
+    cfsetispeed(&tio, s);
+    cfsetospeed(&tio, s);
+
+    /* Non-blocking-ish read: return after up to 100 ms even with no data. */
+    tio.c_cc[VMIN]  = 0;
+    tio.c_cc[VTIME] = 1;
+
+    if (tcsetattr(g_serial, TCSANOW, &tio) != 0) {
+        fprintf(stderr, "tcsetattr failed: %s\n", strerror(errno));
+        return false;
+    }
+    return true;
+}
+
+static int serial_read_byte(char *out) {
+    ssize_t n = read(g_serial, out, 1);
+    if (n == 1) return 1;
+    return 0;
+}
+
+#endif
+
 int main(int argc, char **argv) {
     if (argc < 2) {
+#ifdef _WIN32
         fprintf(stderr, "usage: %s <COMx> [baud]\n", argv[0]);
+#else
+        fprintf(stderr, "usage: %s <serial-device> [baud]\n", argv[0]);
+#endif
         return 1;
     }
-    DWORD baud = (argc > 2) ? (DWORD)atoi(argv[2]) : 115200;
+    unsigned baud = (argc > 2) ? (unsigned)atoi(argv[2]) : 115200u;
     if (!serial_open(argv[1], baud)) return 1;
 
     sensor_sim_init();
@@ -354,13 +486,12 @@ int main(int argc, char **argv) {
     fprintf(stderr, "initial render: %zu B\n", g_tx_bytes);
 
     for (;;) {
-        char  c     = 0;
-        DWORD nread = 0;
+        char c = 0;
 
         sensor_sim_tick();
         if (app_load_target_ma >= 0.0f) g_ina.current_ma = app_load_target_ma;
 
-        if (ReadFile(g_serial, &c, 1, &nread, NULL) && nread == 1) {
+        if (serial_read_byte(&c)) {
             size_t before = g_tx_bytes;
             atc_menu_handle_key(c);
             size_t emitted = g_tx_bytes - before;
