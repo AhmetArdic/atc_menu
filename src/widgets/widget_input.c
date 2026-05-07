@@ -30,10 +30,8 @@ void widget_input_reset(void) {
     S.item   = NULL;
 }
 
-static void render_active(int zebra_idx, const atc_menu_item_t *it) {
-    char   edit[MENU_INPUT_EDIT_BUF];
-    size_t ep  = 0;
-    size_t cap = sizeof edit;
+static void compose_edit(char *edit, size_t cap) {
+    size_t ep = 0;
 
     int n = snprintf(edit + ep, cap - ep, "%s", SYM_INPUT_PROMPT);
     if (n > 0 && (size_t)n < cap - ep) ep += (size_t)n;
@@ -47,6 +45,11 @@ static void render_active(int zebra_idx, const atc_menu_item_t *it) {
     n = snprintf(edit + ep, cap - ep, "%s", SYM_INPUT_CURSOR);
     if (n > 0 && (size_t)n < cap - ep) ep += (size_t)n;
     edit[ep] = '\0';
+}
+
+static void render_active(int zebra_idx, const atc_menu_item_t *it) {
+    char edit[MENU_REGION_INPUT_EDIT_BUF];
+    compose_edit(edit, sizeof edit);
 
     char key_buf[2] = { it->key ? it->key : ' ', 0 };
 
@@ -56,6 +59,16 @@ static void render_active(int zebra_idx, const atc_menu_item_t *it) {
     row_set(&r, 1, NULL, it->label);
     row_set(&r, 2, NULL, edit);
     row_end(&r);
+}
+
+/* Repaint only the EDIT region (region 2 of ROW_LAYOUT_INPUT_EDIT). Used
+ * during interactive typing — KEY and LABEL never change while in input
+ * mode, so we save the bytes that would re-emit them. */
+static void render_edit_region(void) {
+    char edit[MENU_REGION_INPUT_EDIT_BUF];
+    compose_edit(edit, sizeof edit);
+    menu_render_region_at(S.index, &ROW_LAYOUT_INPUT_EDIT, 2, NULL, edit);
+    menu_park_cursor();
 }
 
 static void render(int zebra_idx, const atc_menu_item_t *it) {
@@ -143,21 +156,31 @@ void widget_input_key(char k) {
 
     if (k == '\r' || k == '\n') {
         if (!validate_buffer()) return;
-        bool accepted = !S.item->input_commit || S.item->input_commit(S.buf);
-        if (accepted) widget_input_reset();
-        atc_menu_render();
+        bool   accepted = !S.item->input_commit || S.item->input_commit(S.buf);
+        size_t idx      = S.index;
+        if (accepted) {
+            widget_input_reset();
+            menu_render_row_at(idx);  /* SCALAR layout restored */
+            menu_render_footer();
+        } else {
+            /* Editor stays open; just refresh the EDIT region in case the
+             * commit hook mutated underlying state. */
+            render_edit_region();
+        }
         return;
     }
     if (k == KEY_ESC) {
+        size_t idx = S.index;
         widget_input_reset();
-        atc_menu_render();
+        menu_render_row_at(idx);
+        menu_render_footer();
         return;
     }
     if (k == KEY_BS || k == KEY_DEL) {
         if (S.pos) {
             S.pos--;
             S.buf[S.pos] = '\0';
-            menu_render_row_at(S.index);
+            render_edit_region();
         }
         return;
     }
@@ -165,7 +188,7 @@ void widget_input_key(char k) {
         && char_acceptable(S.item->input_type, k)) {
         S.buf[S.pos++] = k;
         S.buf[S.pos]   = '\0';
-        menu_render_row_at(S.index);
+        render_edit_region();
     }
 }
 
@@ -185,7 +208,11 @@ static void on_key(const atc_menu_item_t *it, size_t index) {
     S.buf[0] = '\0';
     S.index  = index;
     S.item   = it;
-    atc_menu_render();
+    /* Flip the row to INPUT_EDIT layout in place — region 2 of EDIT spans
+     * the same columns as VALUE+UNIT+STATUS combined, so a single region
+     * paint replaces the scalar view without disturbing KEY/LABEL. */
+    render_edit_region();
+    menu_render_footer();
 }
 
 const widget_ops_t widget_input_ops = {

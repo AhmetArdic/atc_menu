@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define WIDGET_CHOICE_STR_MAX  (MENU_VALUE_COL - 4)
+#define WIDGET_CHOICE_STR_MAX  (MENU_REGION_VALUE_W - 4)
 
 static struct {
     bool                          active;
@@ -49,22 +49,32 @@ static void format_choice_box(const char *sel, char *out, size_t cap) {
              SYM_CHOICE_LBR, lpad, "", sl, sel, rpad, "", SYM_CHOICE_RBR);
 }
 
-static void render(int zebra_idx, const atc_menu_item_t *it) {
+static void compose(const atc_menu_item_t *it,
+                    char *box, size_t box_cap,
+                    const char **out_style,
+                    atc_status_t *out_st) {
     atc_status_t st = ATC_ST_OK;
-
     if (it->read) {
         char tmp[MENU_BUF_SIZE] = {0};
         it->read(tmp, MENU_BUF_SIZE, &st);
     }
 
     bool        editing = (S.active && S.item == it);
-    const char *sel     = editing ? choice_str(it, S.pending_idx) : current_choice(it);
+    const char *sel     = editing ? choice_str(it, S.pending_idx)
+                                  : current_choice(it);
 
-    char box[MENU_VALUE_BUF];
-    format_choice_box(sel, box, sizeof box);
+    format_choice_box(sel, box, box_cap);
+    *out_style = editing ? ANSI_BOLD ANSI_FG_VAL : NULL;
+    *out_st    = st;
+}
+
+static void render(int zebra_idx, const atc_menu_item_t *it) {
+    char         box[MENU_REGION_VALUE_BUF];
+    const char  *value_style = NULL;
+    atc_status_t st;
+    compose(it, box, sizeof box, &value_style, &st);
 
     char key_buf[2] = { it->key ? it->key : ' ', 0 };
-    const char *value_style = editing ? ANSI_BOLD ANSI_FG_VAL : NULL;
     const status_disp_t *sd = status_disp(st);
 
     row_t r;
@@ -75,6 +85,20 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
     row_set(&r, 3, NULL,        it->unit);
     row_set(&r, 4, sd->color,   sd->text);
     row_end(&r);
+}
+
+static void render_data(int zebra_idx, const atc_menu_item_t *it,
+                        size_t index) {
+    (void)zebra_idx;
+    char         box[MENU_REGION_VALUE_BUF];
+    const char  *value_style = NULL;
+    atc_status_t st;
+    compose(it, box, sizeof box, &value_style, &st);
+
+    const status_disp_t *sd = status_disp(st);
+
+    menu_render_region_at(index, &ROW_LAYOUT_SCALAR, 2, value_style, box);
+    menu_render_region_at(index, &ROW_LAYOUT_SCALAR, 4, sd->color,   sd->text);
 }
 
 void widget_choice_render_footer(void) {
@@ -104,12 +128,13 @@ static void on_key(const atc_menu_item_t *it, size_t index) {
         S.item        = it;
         S.index       = index;
         S.pending_idx = *it->choice_idx;
-        atc_menu_render();
+        menu_render_data_at(index);  /* highlight pending choice */
+        menu_render_footer();        /* swap to choice-edit footer */
         return;
     }
 
     *it->choice_idx = (uint8_t)((*it->choice_idx + 1) % it->choice_count);
-    menu_render_row_at(index);
+    menu_render_data_at(index);
 }
 
 void widget_choice_key(char k) {
@@ -118,24 +143,29 @@ void widget_choice_key(char k) {
     if (k == '\r' || k == '\n') {
         *S.item->choice_idx = S.pending_idx;
         atc_action_fn_t cb  = S.item->choice_commit;
+        size_t          idx = S.index;
         widget_choice_reset();
         if (cb) cb();
-        atc_menu_render();
+        menu_render_data_at(idx);
+        menu_render_footer();
         return;
     }
     if (k == KEY_ESC) {
+        size_t idx = S.index;
         widget_choice_reset();
-        atc_menu_render();
+        menu_render_data_at(idx);
+        menu_render_footer();
         return;
     }
     if (k == S.item->key) {
         S.pending_idx = (uint8_t)((S.pending_idx + 1) % S.item->choice_count);
-        menu_render_row_at(S.index);
+        menu_render_data_at(S.index);
     }
 }
 
 const widget_ops_t widget_choice_ops = {
-    .render   = render,
-    .validate = validate,
-    .on_key   = on_key,
+    .render      = render,
+    .render_data = render_data,
+    .validate    = validate,
+    .on_key      = on_key,
 };

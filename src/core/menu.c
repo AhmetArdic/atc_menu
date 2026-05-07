@@ -10,6 +10,7 @@
 #include "input/nav.h"
 #include "render/ansi.h"
 #include "render/render.h"
+#include "render/row.h"
 #include "widgets/widget.h"
 
 #include <stdarg.h>
@@ -76,6 +77,39 @@ void menu_render_row_at(size_t index) {
     menu_park_cursor();
 }
 
+void menu_render_data_at(size_t index) {
+    const atc_menu_item_t *it  = &nav_items()[index];
+    const widget_ops_t    *ops = widget_ops(it->type);
+    if (ops && ops->render_data) {
+        ops->render_data((int)index, it, index);
+        menu_park_cursor();
+    } else {
+        menu_render_row_at(index);
+    }
+}
+
+void menu_render_region_at(size_t                    index,
+                           const struct row_layout  *layout,
+                           size_t                    region_idx,
+                           const char               *style,
+                           const char               *text) {
+    if (!layout || region_idx >= layout->count) return;
+
+    int y = render_header_lines(g_info) + 1 + (int)index;
+    int x = row_region_column(layout, region_idx);
+    if (x < 0) return;
+
+    /* Caller is responsible for parking the cursor afterwards (typically
+     * via menu_render_data_at, which parks once after a batch of region
+     * updates). This keeps multi-region updates single-park. */
+    row_buf_t b;
+    row_buf_reset(&b);
+    row_buf_printf(&b, ANSI_GOTO_XY_FMT, y, x);
+    row_emit_region(&b, &layout->regions[region_idx],
+                    (int)index, style, text);
+    row_buf_flush(&b);
+}
+
 void menu_render_group_span(size_t start) {
     const atc_menu_item_t *items = nav_items();
     size_t                 count = nav_count();
@@ -87,6 +121,25 @@ void menu_render_group_span(size_t start) {
     menu_printf("%s", ANSI_EOL);
     for (size_t i = start; i < end; i++) render_item((int)i, &items[i]);
     menu_park_cursor();
+}
+
+static void emit_active_footer(void) {
+    if      (widget_input_active())  widget_input_render_footer();
+    else if (widget_choice_active()) widget_choice_render_footer();
+    else                             render_default_footer(nav_depth() > 0);
+}
+
+void menu_render_footer(void) {
+    /* Park on the line right after box-bottom (where atc_menu_render's
+     * cursor sits when emit_active_footer fires). The footer's leading
+     * "\r\n" then steps down onto the actual footer text line. */
+    int line = render_header_lines(g_info) + (int)nav_count()
+             + render_notes_lines(nav_note_count()) + 2;
+    render_park_cursor(line, false);
+    menu_printf("%s", ANSI_CLR_BELOW);
+    emit_active_footer();
+    menu_printf("%s", ANSI_CLR_BELOW);
+    g_status_dirty = false;
 }
 
 void atc_menu_render(void) {
@@ -103,9 +156,7 @@ void atc_menu_render(void) {
     render_box_bottom();
 
     menu_printf("%s", ANSI_CLR_BELOW);
-    if      (widget_input_active())  widget_input_render_footer();
-    else if (widget_choice_active()) widget_choice_render_footer();
-    else                             render_default_footer(nav_depth() > 0);
+    emit_active_footer();
     menu_printf("%s", ANSI_CLR_BELOW);
     g_status_dirty = false;
 }
@@ -195,7 +246,7 @@ void atc_menu_handle_key(char k) {
             ops->on_key(&items[i], i);
         } else {
             if (items[i].action) items[i].action();
-            menu_render_row_at(i);
+            menu_render_data_at(i);
         }
         return;
     }

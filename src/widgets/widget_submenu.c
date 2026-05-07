@@ -24,9 +24,9 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
 static void validate(const atc_menu_item_t *it) {
     if (!it->submenu || !it->submenu->items || it->submenu->count == 0)
         menu_printf("WARN: ATC_ROW_SUBMENU '%c' missing submenu\r\n", it->key);
-    if (it->label && strlen(it->label) > MENU_SUBMENU_LABEL_W)
+    if (it->label && strlen(it->label) > MENU_REGION_SUBMENU_LABEL_W)
         menu_printf("WARN: SUBMENU label '%s' exceeds %d cols\r\n",
-                        it->label, MENU_SUBMENU_LABEL_W);
+                        it->label, MENU_REGION_SUBMENU_LABEL_W);
     if (it->submenu)
         render_validate_notes(it->submenu->notes, it->submenu->note_count);
 }

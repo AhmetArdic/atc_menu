@@ -41,13 +41,22 @@ typedef struct {
     int             gap_after;      /* spaces emitted after region (last is ignored) */
 } region_def_t;
 
+/* Emit one region's bg + style + padded text into @p out. No cursor
+ * positioning, no border. Used by Layer 3 row composition and by the
+ * partial-row update path (menu_render_region_at). */
+void row_emit_region(row_buf_t          *out,
+                     const region_def_t *def,
+                     int                 zebra_idx,
+                     const char         *style,
+                     const char         *text);
+
 /* ---------------------------------------------------------------- Layer 3 */
 
 #ifndef ATC_ROW_MAX_REGIONS
 #define ATC_ROW_MAX_REGIONS 8
 #endif
 
-typedef struct {
+typedef struct row_layout {
     const region_def_t *regions;
     size_t              count;
 } row_layout_t;
@@ -69,6 +78,10 @@ void row_begin(row_t *r, const row_layout_t *layout, int zebra_idx);
 void row_set  (row_t *r, size_t region_idx,
                const char *style, const char *text);
 void row_end  (row_t *r);
+
+/* 1-based screen column where region @p region_idx starts within the row
+ * (column 1 is the leading box border). Returns -1 on invalid input. */
+int  row_region_column(const row_layout_t *layout, size_t region_idx);
 
 /* Shared layouts. Definitions live in row.c. */
 extern const row_layout_t ROW_LAYOUT_SCALAR;       /* 5 regions: KEY LABEL VALUE UNIT STATUS */

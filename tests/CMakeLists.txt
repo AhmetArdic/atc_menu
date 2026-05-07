@@ -21,6 +21,9 @@ endif()
 if(ATC_MENU_WIDGET_BAR AND ATC_MENU_WIDGET_CHOICE AND ATC_MENU_WIDGET_INPUT)
     add_executable(dump_render dump_render.c)
     target_link_libraries(dump_render PRIVATE atc_menu_mock)
+
+    add_executable(dump_bandwidth dump_bandwidth.c)
+    target_link_libraries(dump_bandwidth PRIVATE atc_menu_mock)
 endif()
 
 add_executable(dump_warn dump_warn.c)

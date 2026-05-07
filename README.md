@@ -61,24 +61,25 @@ Tüm sütun genişliği ve buffer boyutu sabitleri `src/render/layout.h`
 içinde `#ifndef` guard'ı ile tanımlı; CMake `target_compile_definitions`
 (ya da `-DMENU_X=Y`) ile override edilebilir.
 
-| Define              | Default | Anlam                                       |
-|---------------------|--------:|---------------------------------------------|
-| `MENU_KEY_COL`      |     `1` | Hotkey sütunu genişliği                     |
-| `MENU_LABEL_COL`    |    `24` | Label sütunu genişliği                      |
-| `MENU_VALUE_COL`    |    `10` | Value sütunu genişliği (BAR/CHOICE buna sığar) |
-| `MENU_UNIT_COL`     |     `5` | Unit sütunu genişliği                       |
-| `MENU_STATUS_COL`   |     `1` | Status sembol sütunu                        |
-| `MENU_FIELD_GAP_W`  |     `3` | Sütunlar arası boşluk                       |
-| `MENU_BUF_SIZE`     |    `16` | `read()` çağrısına geçen yığın tampon       |
-| `MENU_CMD_BUF`      |    `64` | Komut modu satır tamponu                    |
-| `MENU_INPUT_BUF`    |    `16` | INPUT widget editör tamponu                 |
-| `MENU_ROW_BUF`      |   `256` | row derleme tamponu (ANSI dahil)            |
-| `ATC_MENU_STACK_DEPTH` |  `4` | Sub-menu nav stack maksimum derinliği       |
+| Define                   | Default | Anlam                                       |
+|--------------------------|--------:|---------------------------------------------|
+| `MENU_REGION_KEY_W`      |     `1` | Hotkey region genişliği                     |
+| `MENU_REGION_LABEL_W`    |    `24` | Label region genişliği                      |
+| `MENU_REGION_VALUE_W`    |    `10` | Value region genişliği (BAR/CHOICE buna sığar) |
+| `MENU_REGION_UNIT_W`     |     `5` | Unit region genişliği                       |
+| `MENU_REGION_STATUS_W`   |     `1` | Status sembol region'ı                      |
+| `MENU_REGION_GAP_W`      |     `3` | Region'lar arası boşluk                     |
+| `MENU_BUF_SIZE`          |    `16` | `read()` çağrısına geçen yığın tampon       |
+| `MENU_CMD_BUF`           |    `64` | Komut modu satır tamponu                    |
+| `MENU_INPUT_BUF`         |    `16` | INPUT widget editör tamponu                 |
+| `MENU_ROW_BUF`           |   `256` | row derleme tamponu (ANSI dahil)            |
+| `ATC_MENU_STACK_DEPTH`   |     `4` | Sub-menu nav stack maksimum derinliği       |
 
-`MENU_INNER_W`, `MENU_GROUP_LABEL_W`, `MENU_SUBMENU_LABEL_W`,
-`MENU_INPUT_EDIT_W`, `MENU_NOTE_W`, `MENU_VALUE_BUF`,
-`MENU_INPUT_EDIT_BUF` yukarıdakilerden türetilir; ayrıca tanımlamaya
-gerek yok.
+`MENU_INNER_W`, `MENU_REGION_GROUP_LABEL_W`,
+`MENU_REGION_SUBMENU_LABEL_W`, `MENU_REGION_INPUT_EDIT_W`,
+`MENU_REGION_NOTE_W`, `MENU_REGION_VALUE_BUF`,
+`MENU_REGION_INPUT_EDIT_BUF` yukarıdakilerden türetilir; ayrıca
+tanımlamaya gerek yok.
 
 ## Hızlı başlangıç
 

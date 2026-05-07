@@ -15,9 +15,9 @@
 #include "mock_port.h"
 #include "testing.h"
 
-/* MENU_INNER_W (= sum of key/label/value/unit/status columns with field
- * gaps and outer pad) is private to the renderer; we read it back from
- * the rendered top edge so this test stays sane when layout.h is tuned. */
+/* MENU_INNER_W (= sum of MENU_REGION_* widths and gaps) is private to
+ * the renderer; we read it back from the rendered top edge so this
+ * test stays sane when layout.h is tuned. */
 static size_t g_box_width;
 
 /* Strip CSI (ESC '[' params final) sequences and return visible display

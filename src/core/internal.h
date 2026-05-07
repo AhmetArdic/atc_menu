@@ -34,8 +34,22 @@ bool menu_status_dirty(void);
 void menu_set_status_dirty(bool dirty);
 
 void menu_render_row_at(size_t index);
+void menu_render_data_at(size_t index);
 void menu_render_group_span(size_t start);
+void menu_render_footer(void);
 void menu_park_cursor(void);
+
+/* Forward decl — full type lives in render/row.h. */
+struct row_layout;
+
+/* Repaint exactly one region of the row at @p index. Useful when only a
+ * data field (value, status, edit cursor) changed and the static columns
+ * (key, label, unit) are known to be unchanged. */
+void menu_render_region_at(size_t                    index,
+                           const struct row_layout  *layout,
+                           size_t                    region_idx,
+                           const char               *style,
+                           const char               *text);
 
 int menu_printf(const char *fmt, ...);
 

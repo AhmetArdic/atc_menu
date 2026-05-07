@@ -20,9 +20,9 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
 }
 
 static void validate(const atc_menu_item_t *it) {
-    if (it->label && strlen(it->label) > MENU_GROUP_LABEL_W)
+    if (it->label && strlen(it->label) > MENU_REGION_GROUP_LABEL_W)
         menu_printf("WARN: GROUP label '%s' exceeds %d cols\r\n",
-                        it->label, MENU_GROUP_LABEL_W);
+                        it->label, MENU_REGION_GROUP_LABEL_W);
 }
 
 static void on_key(const atc_menu_item_t *it, size_t index) {

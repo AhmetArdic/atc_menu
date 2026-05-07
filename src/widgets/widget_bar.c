@@ -12,7 +12,7 @@
 
 #define WIDGET_BAR_PCT_MIN    0
 #define WIDGET_BAR_PCT_MAX  100
-#define WIDGET_BAR_CELLS   (MENU_VALUE_COL - 2)
+#define WIDGET_BAR_CELLS   (MENU_REGION_VALUE_W - 2)
 #define WIDGET_BAR_SUB      8
 #define WIDGET_BAR_LEVELS  (WIDGET_BAR_CELLS * WIDGET_BAR_SUB)
 
@@ -40,7 +40,10 @@ static size_t bar_append(char *buf, size_t cap, size_t pos, const char *s) {
     return (n > 0 && (size_t)n < cap - pos) ? pos + (size_t)n : pos;
 }
 
-static void render(int zebra_idx, const atc_menu_item_t *it) {
+static void compose(const atc_menu_item_t *it,
+                    char *bar, size_t bar_cap,
+                    char *unit, size_t unit_cap,
+                    atc_status_t *out_st) {
     char         raw[MENU_BUF_SIZE] = {0};
     atc_status_t st                 = ATC_ST_NONE;
     if (it->read) it->read(raw, MENU_BUF_SIZE, &st);
@@ -51,21 +54,26 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
     int full = subs / WIDGET_BAR_SUB;
     int part = subs % WIDGET_BAR_SUB;
 
-    char   bar[MENU_VALUE_BUF];
     size_t bp = 0;
-
-    bp = bar_append(bar, sizeof bar, bp, SYM_BAR_LBR);
+    bp = bar_append(bar, bar_cap, bp, SYM_BAR_LBR);
     for (int i = 0; i < full; i++)
-        bp = bar_append(bar, sizeof bar, bp, SYM_BAR_FILL);
+        bp = bar_append(bar, bar_cap, bp, SYM_BAR_FILL);
     if (part)
-        bp = bar_append(bar, sizeof bar, bp, BAR_PARTIAL[part]);
+        bp = bar_append(bar, bar_cap, bp, BAR_PARTIAL[part]);
     for (int i = full + (part > 0); i < WIDGET_BAR_CELLS; i++)
-        bp = bar_append(bar, sizeof bar, bp, SYM_BAR_EMPTY);
-    bp = bar_append(bar, sizeof bar, bp, SYM_BAR_RBR);
+        bp = bar_append(bar, bar_cap, bp, SYM_BAR_EMPTY);
+    bp = bar_append(bar, bar_cap, bp, SYM_BAR_RBR);
     bar[bp] = '\0';
 
-    char unit[MENU_UNIT_COL + 1];
-    snprintf(unit, sizeof unit, "%d %%", pct);
+    snprintf(unit, unit_cap, "%d %%", pct);
+    *out_st = st;
+}
+
+static void render(int zebra_idx, const atc_menu_item_t *it) {
+    char         bar[MENU_REGION_VALUE_BUF];
+    char         unit[MENU_REGION_UNIT_W + 1];
+    atc_status_t st;
+    compose(it, bar, sizeof bar, unit, sizeof unit, &st);
 
     char key_buf[2] = { it->key ? it->key : ' ', 0 };
     const status_disp_t *sd = status_disp(st);
@@ -80,13 +88,31 @@ static void render(int zebra_idx, const atc_menu_item_t *it) {
     row_end(&r);
 }
 
+static void render_data(int zebra_idx, const atc_menu_item_t *it,
+                        size_t index) {
+    (void)zebra_idx;
+    char         bar[MENU_REGION_VALUE_BUF];
+    char         unit[MENU_REGION_UNIT_W + 1];
+    atc_status_t st;
+    compose(it, bar, sizeof bar, unit, sizeof unit, &st);
+
+    const status_disp_t *sd = status_disp(st);
+
+    /* Regions 2 (VALUE), 3 (UNIT — dynamic %), 4 (STATUS) all change. */
+    menu_render_region_at(index, &ROW_LAYOUT_SCALAR, 2,
+                          fill_color_for(st), bar);
+    menu_render_region_at(index, &ROW_LAYOUT_SCALAR, 3, NULL, unit);
+    menu_render_region_at(index, &ROW_LAYOUT_SCALAR, 4, sd->color, sd->text);
+}
+
 static void validate(const atc_menu_item_t *it) {
     if (!it->read)
         menu_printf("WARN: ATC_ROW_BAR '%c' missing read\r\n", it->key);
 }
 
 const widget_ops_t widget_bar_ops = {
-    .render   = render,
-    .validate = validate,
-    .on_key   = NULL,
+    .render      = render,
+    .render_data = render_data,
+    .validate    = validate,
+    .on_key      = NULL,
 };

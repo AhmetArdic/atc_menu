@@ -48,9 +48,9 @@ int render_notes_lines(size_t count) {
 void render_validate_notes(const char *const *notes, size_t count) {
     if (!notes || count == 0) return;
     for (size_t i = 0; i < count; i++) {
-        if (notes[i] && (int)strlen(notes[i]) > MENU_NOTE_W)
+        if (notes[i] && (int)strlen(notes[i]) > MENU_REGION_NOTE_W)
             menu_printf("WARN: note exceeds %d cols: '%s'\r\n",
-                            MENU_NOTE_W, notes[i]);
+                            MENU_REGION_NOTE_W, notes[i]);
     }
 }
 
@@ -89,9 +89,9 @@ void render_info_row(const char *l, const char *r,
                      const char *l_color, const char *r_color) {
     int lw = l ? (int)strlen(l) : 0;
     int rw = r ? (int)strlen(r) : 0;
-    if (rw > MENU_NOTE_W)      rw = MENU_NOTE_W;
-    if (lw > MENU_NOTE_W - rw) lw = MENU_NOTE_W - rw;
-    int gap = MENU_NOTE_W - lw - rw;
+    if (rw > MENU_REGION_NOTE_W)      rw = MENU_REGION_NOTE_W;
+    if (lw > MENU_REGION_NOTE_W - rw) lw = MENU_REGION_NOTE_W - rw;
+    int gap = MENU_REGION_NOTE_W - lw - rw;
 
     row_buf_t b;
     row_buf_reset(&b);

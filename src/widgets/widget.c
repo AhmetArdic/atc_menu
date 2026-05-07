@@ -79,11 +79,25 @@ void widget_render_scalar(int zebra_idx, const atc_menu_item_t *it) {
     row_end(&r);
 }
 
+void widget_render_scalar_data(int zebra_idx, const atc_menu_item_t *it,
+                               size_t index) {
+    (void)zebra_idx;
+    char         val[MENU_BUF_SIZE] = {0};
+    atc_status_t st                 = ATC_ST_NONE;
+    if (it->read) it->read(val, sizeof val, &st);
+
+    const status_disp_t *sd = status_disp(st);
+
+    /* Region 2 = VALUE, region 4 = STATUS. KEY/LABEL/UNIT do not change. */
+    menu_render_region_at(index, &ROW_LAYOUT_SCALAR, 2, NULL,      val);
+    menu_render_region_at(index, &ROW_LAYOUT_SCALAR, 4, sd->color, sd->text);
+}
+
 void widget_validate_label_unit(const atc_menu_item_t *it) {
-    if (it->label && strlen(it->label) > MENU_LABEL_COL)
+    if (it->label && strlen(it->label) > MENU_REGION_LABEL_W)
         menu_printf("WARN: label '%s' exceeds %d cols\r\n",
-                        it->label, MENU_LABEL_COL);
-    if (it->unit && strlen(it->unit) > MENU_UNIT_COL)
+                        it->label, MENU_REGION_LABEL_W);
+    if (it->unit && strlen(it->unit) > MENU_REGION_UNIT_W)
         menu_printf("WARN: unit '%s' exceeds %d cols\r\n",
-                        it->unit, MENU_UNIT_COL);
+                        it->unit, MENU_REGION_UNIT_W);
 }

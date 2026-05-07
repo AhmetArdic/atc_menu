@@ -12,7 +12,8 @@ static void validate(const atc_menu_item_t *it) {
 }
 
 const widget_ops_t widget_action_ops = {
-    .render   = widget_render_scalar,
-    .validate = validate,
-    .on_key   = NULL,
+    .render      = widget_render_scalar,
+    .render_data = widget_render_scalar_data,
+    .validate    = validate,
+    .on_key      = NULL,
 };

@@ -31,6 +31,21 @@ static const char *zebra_bg(int zebra_idx) {
     return (zebra_idx & 1) ? ANSI_BG_ZEBRA : "";
 }
 
+/* Emit padded text into @p out for a region of @p def. Caller is responsible
+ * for opening (style/bg) and closing (reset) escapes. */
+static void emit_padded(row_buf_t *out, const region_def_t *def,
+                        const char *text, int cols, int pad) {
+    if (cols > def->width) {
+        row_buf_printf(out, "%-*.*s", def->width, def->width, text);
+    } else if (def->align == REGION_ALIGN_RIGHT) {
+        if (pad > 0) row_buf_printf(out, "%*s", pad, "");
+        row_buf_printf(out, "%s", text);
+    } else {
+        row_buf_printf(out, "%s", text);
+        if (pad > 0) row_buf_printf(out, "%*s", pad, "");
+    }
+}
+
 /* ---------------------------------------------------------------- Layer 1 */
 
 void row_buf_reset(row_buf_t *b) {
@@ -59,29 +74,56 @@ void row_buf_printf(row_buf_t *b, const char *fmt, ...) {
     va_end(ap);
 }
 
+/* ---------------------------------------------------------------- Layer 2 */
+
+/* Standalone region emit (used by partial-row updates). Self-contained:
+ * applies bg + style up front and a single ANSI_RESET at the end. The
+ * caller positions the cursor and is free to write whatever follows. */
+void row_emit_region(row_buf_t          *out,
+                     const region_def_t *def,
+                     int                 zebra_idx,
+                     const char         *style,
+                     const char         *text) {
+    if (!out || !def) return;
+    if (!text) text = "";
+
+    const char *eff_style = (style && *style) ? style : def->default_style;
+    const char *bg        = zebra_bg(zebra_idx);
+    bool        styled    = eff_style && *eff_style;
+
+    if (*bg)    row_buf_printf(out, "%s", bg);
+    if (styled) row_buf_printf(out, "%s", eff_style);
+
+    int cols = utf8_cols(text);
+    emit_padded(out, def, text, cols, def->width - cols);
+
+    if (styled || *bg) row_buf_printf(out, ANSI_RESET);
+}
+
+int row_region_column(const row_layout_t *layout, size_t region_idx) {
+    if (!layout || region_idx >= layout->count) return -1;
+    /* Column 1 is the leading "|" border; region 0 starts at column 2. */
+    int col = 2;
+    for (size_t i = 0; i < region_idx; i++)
+        col += layout->regions[i].width + layout->regions[i].gap_after;
+    return col;
+}
+
 /* ---------------------------------------------------------------- Layer 3 */
 
-static void emit_region(row_t *r,
-                        const region_def_t     *def,
-                        const region_content_t *c) {
+/* Inline emit used by row_end. Differs from row_emit_region in that the
+ * bg is assumed already active before entry, and we restore it after the
+ * region's own RESET so the gap and subsequent regions inherit it. */
+static void row_emit_inline(row_t *r, const region_def_t *def,
+                            const region_content_t *c) {
     const char *text  = c->text  ? c->text  : "";
     const char *style = (c->style && *c->style) ? c->style : def->default_style;
-    int         cols  = utf8_cols(text);
-    int         pad   = def->width - cols;
     bool        styled = style && *style;
 
     if (styled) row_buf_printf(&r->out, "%s", style);
 
-    if (cols > def->width) {
-        /* Truncate by byte — matches legacy row_cell behaviour. */
-        row_buf_printf(&r->out, "%-*.*s", def->width, def->width, text);
-    } else if (def->align == REGION_ALIGN_RIGHT) {
-        if (pad > 0) row_buf_printf(&r->out, "%*s", pad, "");
-        row_buf_printf(&r->out, "%s", text);
-    } else {
-        row_buf_printf(&r->out, "%s", text);
-        if (pad > 0) row_buf_printf(&r->out, "%*s", pad, "");
-    }
+    int cols = utf8_cols(text);
+    emit_padded(&r->out, def, text, cols, def->width - cols);
 
     if (styled) row_buf_printf(&r->out, ANSI_RESET "%s", r->bg);
 }
@@ -114,7 +156,7 @@ void row_end(row_t *r) {
     row_buf_printf(&r->out, ANSI_DIM SYM_BOX_V ANSI_RESET "%s", r->bg);
 
     for (size_t i = 0; i < r->layout->count; i++) {
-        emit_region(r, &r->layout->regions[i], &r->content[i]);
+        row_emit_inline(r, &r->layout->regions[i], &r->content[i]);
         if (i + 1 < r->layout->count && r->layout->regions[i].gap_after > 0)
             row_buf_printf(&r->out, "%*s",
                            r->layout->regions[i].gap_after, "");
@@ -126,14 +168,14 @@ void row_end(row_t *r) {
 
 /* ---------------------------------------------------------------- layouts */
 
-#define GAP MENU_FIELD_GAP_W
+#define GAP MENU_REGION_GAP_W
 
 static const region_def_t scalar_regions[] = {
-    { MENU_KEY_COL,    REGION_ALIGN_LEFT,  ANSI_FG_KEY, GAP },
-    { MENU_LABEL_COL,  REGION_ALIGN_LEFT,  NULL,        GAP },
-    { MENU_VALUE_COL,  REGION_ALIGN_RIGHT, ANSI_FG_VAL, GAP },
-    { MENU_UNIT_COL,   REGION_ALIGN_LEFT,  ANSI_DIM,    GAP },
-    { MENU_STATUS_COL, REGION_ALIGN_LEFT,  NULL,        0   },
+    { MENU_REGION_KEY_W,    REGION_ALIGN_LEFT,  ANSI_FG_KEY, GAP },
+    { MENU_REGION_LABEL_W,  REGION_ALIGN_LEFT,  NULL,        GAP },
+    { MENU_REGION_VALUE_W,  REGION_ALIGN_RIGHT, ANSI_FG_VAL, GAP },
+    { MENU_REGION_UNIT_W,   REGION_ALIGN_LEFT,  ANSI_DIM,    GAP },
+    { MENU_REGION_STATUS_W, REGION_ALIGN_LEFT,  NULL,        0   },
 };
 const row_layout_t ROW_LAYOUT_SCALAR = {
     .regions = scalar_regions,
@@ -141,8 +183,8 @@ const row_layout_t ROW_LAYOUT_SCALAR = {
 };
 
 static const region_def_t group_regions[] = {
-    { MENU_KEY_COL,        REGION_ALIGN_LEFT, ANSI_FG_KEY, GAP },
-    { MENU_GROUP_LABEL_W,  REGION_ALIGN_LEFT, NULL,        0   },
+    { MENU_REGION_KEY_W,         REGION_ALIGN_LEFT, ANSI_FG_KEY, GAP },
+    { MENU_REGION_GROUP_LABEL_W, REGION_ALIGN_LEFT, NULL,        0   },
 };
 const row_layout_t ROW_LAYOUT_GROUP = {
     .regions = group_regions,
@@ -150,9 +192,9 @@ const row_layout_t ROW_LAYOUT_GROUP = {
 };
 
 static const region_def_t submenu_regions[] = {
-    { MENU_KEY_COL,           REGION_ALIGN_LEFT, ANSI_FG_KEY, GAP },
-    { MENU_SUBMENU_PROMPT_W,  REGION_ALIGN_LEFT, ANSI_FG_KEY, 0   },
-    { MENU_SUBMENU_LABEL_W,   REGION_ALIGN_LEFT, NULL,        0   },
+    { MENU_REGION_KEY_W,            REGION_ALIGN_LEFT, ANSI_FG_KEY, GAP },
+    { MENU_REGION_SUBMENU_PROMPT_W, REGION_ALIGN_LEFT, ANSI_FG_KEY, 0   },
+    { MENU_REGION_SUBMENU_LABEL_W,  REGION_ALIGN_LEFT, NULL,        0   },
 };
 const row_layout_t ROW_LAYOUT_SUBMENU = {
     .regions = submenu_regions,
@@ -160,9 +202,9 @@ const row_layout_t ROW_LAYOUT_SUBMENU = {
 };
 
 static const region_def_t input_edit_regions[] = {
-    { MENU_KEY_COL,       REGION_ALIGN_LEFT, ANSI_FG_KEY, GAP },
-    { MENU_LABEL_COL,     REGION_ALIGN_LEFT, NULL,        GAP },
-    { MENU_INPUT_EDIT_W,  REGION_ALIGN_LEFT, ANSI_FG_VAL, 0   },
+    { MENU_REGION_KEY_W,        REGION_ALIGN_LEFT, ANSI_FG_KEY, GAP },
+    { MENU_REGION_LABEL_W,      REGION_ALIGN_LEFT, NULL,        GAP },
+    { MENU_REGION_INPUT_EDIT_W, REGION_ALIGN_LEFT, ANSI_FG_VAL, 0   },
 };
 const row_layout_t ROW_LAYOUT_INPUT_EDIT = {
     .regions = input_edit_regions,
@@ -170,7 +212,7 @@ const row_layout_t ROW_LAYOUT_INPUT_EDIT = {
 };
 
 static const region_def_t note_regions[] = {
-    { MENU_NOTE_W, REGION_ALIGN_LEFT, ANSI_DIM, 0 },
+    { MENU_REGION_NOTE_W, REGION_ALIGN_LEFT, ANSI_DIM, 0 },
 };
 const row_layout_t ROW_LAYOUT_NOTE = {
     .regions = note_regions,
