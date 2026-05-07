@@ -76,9 +76,6 @@ void row_buf_printf(row_buf_t *b, const char *fmt, ...) {
 
 /* ---------------------------------------------------------------- Layer 2 */
 
-/* Standalone region emit (used by partial-row updates). Self-contained:
- * applies bg + style up front and a single ANSI_RESET at the end. The
- * caller positions the cursor and is free to write whatever follows. */
 void row_emit_region(row_buf_t          *out,
                      const region_def_t *def,
                      int                 zebra_idx,

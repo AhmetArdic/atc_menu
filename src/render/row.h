@@ -41,9 +41,7 @@ typedef struct {
     int             gap_after;      /* spaces emitted after region (last is ignored) */
 } region_def_t;
 
-/* Emit one region's bg + style + padded text into @p out. No cursor
- * positioning, no border. Used by Layer 3 row composition and by the
- * partial-row update path (menu_render_region_at). */
+/* Emits bg + style + padded text. No cursor positioning, no border. */
 void row_emit_region(row_buf_t          *out,
                      const region_def_t *def,
                      int                 zebra_idx,
@@ -83,14 +81,12 @@ void row_end  (row_t *r);
  * (column 1 is the leading box border). Returns -1 on invalid input. */
 int  row_region_column(const row_layout_t *layout, size_t region_idx);
 
-/* Shared layouts. Definitions live in row.c. */
-extern const row_layout_t ROW_LAYOUT_SCALAR;       /* 5 regions: KEY LABEL VALUE UNIT STATUS */
-extern const row_layout_t ROW_LAYOUT_GROUP;        /* 2 regions: KEY WIDE_LABEL */
-extern const row_layout_t ROW_LAYOUT_SUBMENU;      /* 3 regions: KEY PROMPT LABEL */
-extern const row_layout_t ROW_LAYOUT_INPUT_EDIT;   /* 3 regions: KEY LABEL EDIT */
-extern const row_layout_t ROW_LAYOUT_NOTE;         /* 1 region:  full-width dim */
+extern const row_layout_t ROW_LAYOUT_SCALAR;       /* KEY LABEL VALUE UNIT STATUS */
+extern const row_layout_t ROW_LAYOUT_GROUP;        /* KEY WIDE_LABEL */
+extern const row_layout_t ROW_LAYOUT_SUBMENU;      /* KEY PROMPT LABEL */
+extern const row_layout_t ROW_LAYOUT_INPUT_EDIT;   /* KEY LABEL EDIT */
+extern const row_layout_t ROW_LAYOUT_NOTE;         /* full-width dim */
 
-/* Status glyph + colour lookup (kept here because widgets read it directly). */
 typedef struct { const char *color, *text; } status_disp_t;
 const status_disp_t *status_disp(atc_status_t st);
 

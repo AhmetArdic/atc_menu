@@ -160,7 +160,7 @@ void widget_input_key(char k) {
         size_t idx      = S.index;
         if (accepted) {
             widget_input_reset();
-            menu_render_row_at(idx);  /* SCALAR layout restored */
+            menu_render_row_at(idx);
             menu_render_footer();
         } else {
             /* Editor stays open; just refresh the EDIT region in case the

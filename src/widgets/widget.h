@@ -4,11 +4,8 @@
  */
 
 /*
- * Adding a new row type:
- *   1. Add an enum value in atc_menu.h
- *   2. Add widget_<name>.c with a static const widget_ops_t and any
- *      type-specific helpers
- *   3. Wire it into widget_ops() (widget.c)
+ * Adding a new row type: copy templates/widget_template.c and follow
+ * the recipe at the top of that file.
  */
 
 #ifndef ATC_MENU_WIDGET_H

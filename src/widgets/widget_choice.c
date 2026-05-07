@@ -128,8 +128,8 @@ static void on_key(const atc_menu_item_t *it, size_t index) {
         S.item        = it;
         S.index       = index;
         S.pending_idx = *it->choice_idx;
-        menu_render_data_at(index);  /* highlight pending choice */
-        menu_render_footer();        /* swap to choice-edit footer */
+        menu_render_data_at(index);
+        menu_render_footer();
         return;
     }
 
