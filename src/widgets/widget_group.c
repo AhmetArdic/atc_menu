@@ -4,17 +4,19 @@
  */
 
 #include "render/render.h"
+#include "render/row.h"
 #include "widgets/widget.h"
 
 #include <string.h>
 
 static void render(int zebra_idx, const atc_menu_item_t *it) {
+    char key_buf[2] = { it->key ? it->key : ' ', 0 };
+
     row_t r;
-    row_open(&r, zebra_idx);
-    row_key(&r, it->key);
-    row_gap(&r);
-    row_cell(&r, MENU_GROUP_LABEL_W, ANSI_BOLD, it->label);
-    row_close(&r);
+    row_begin(&r, &ROW_LAYOUT_GROUP, zebra_idx);
+    row_set(&r, 0, NULL,      key_buf);
+    row_set(&r, 1, ANSI_BOLD, it->label);
+    row_end(&r);
 }
 
 static void validate(const atc_menu_item_t *it) {

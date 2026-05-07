@@ -7,39 +7,7 @@
 #define ATC_MENU_RENDER_H
 
 #include "core/internal.h"
-
-typedef struct { const char *color, *text; } status_disp_t;
-
-const status_disp_t *status_disp(atc_status_t st);
-
-typedef struct {
-    const char *bg;
-    char        buf[MENU_ROW_BUF];
-    int         len;
-} row_t;
-
-void row_reset (row_t *r);
-void row_flush (row_t *r);
-void row_printf(row_t *r, const char *fmt, ...);
-
-void row_open       (row_t *r, int zebra_idx);
-void row_gap        (row_t *r);
-void row_key        (row_t *r, char k);
-void row_cell       (row_t *r, int width, const char *style, const char *text);
-void row_cell_right (row_t *r, int width, const char *style, const char *text);
-void row_text       (row_t *r, const char *style, const char *text);
-void row_close      (row_t *r);
-
-typedef struct {
-    char         key;
-    const char  *label;
-    const char  *value;
-    const char  *value_color;
-    const char  *unit;
-    atc_status_t status;
-} render_cells_t;
-
-void render_row_cells(int zebra_idx, const render_cells_t *cells);
+#include "render/row.h"
 
 void render_box_top(const char *title, const char *version);
 void render_box_separator(void);

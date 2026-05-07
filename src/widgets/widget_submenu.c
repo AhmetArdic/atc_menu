@@ -5,18 +5,20 @@
 
 #include "input/nav.h"
 #include "render/render.h"
+#include "render/row.h"
 #include "widgets/widget.h"
 
 #include <string.h>
 
 static void render(int zebra_idx, const atc_menu_item_t *it) {
+    char key_buf[2] = { it->key ? it->key : ' ', 0 };
+
     row_t r;
-    row_open(&r, zebra_idx);
-    row_key(&r, it->key);
-    row_gap(&r);
-    row_text(&r, ANSI_FG_KEY, SYM_SUBMENU);
-    row_cell(&r, MENU_SUBMENU_LABEL_W, NULL, it->label);
-    row_close(&r);
+    row_begin(&r, &ROW_LAYOUT_SUBMENU, zebra_idx);
+    row_set(&r, 0, NULL, key_buf);
+    row_set(&r, 1, NULL, SYM_SUBMENU);
+    row_set(&r, 2, NULL, it->label);
+    row_end(&r);
 }
 
 static void validate(const atc_menu_item_t *it) {

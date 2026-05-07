@@ -42,18 +42,18 @@ static const char *reserved_role(char k) {
 int menu_printf(const char *fmt, ...) {
     if (!g_port || !g_port->write) return 0;
 
-    row_t   r;
-    row_reset(&r);
+    row_buf_t b;
+    row_buf_reset(&b);
 
     va_list ap;
     va_start(ap, fmt);
-    int n = vsnprintf(r.buf, sizeof r.buf, fmt, ap);
+    int n = vsnprintf(b.buf, sizeof b.buf, fmt, ap);
     va_end(ap);
 
     if (n < 0) return n;
-    r.len = (int)((size_t)n < sizeof r.buf ? (size_t)n : sizeof r.buf - 1);
-    int written = r.len;
-    row_flush(&r);
+    b.len = (int)((size_t)n < sizeof b.buf ? (size_t)n : sizeof b.buf - 1);
+    int written = b.len;
+    row_buf_flush(&b);
     return written;
 }
 

@@ -18,7 +18,7 @@ UART üzerinden çalışan, tablo-driven, allocation-free C11 debug menü framew
 ```
 include/atc_menu/atc_menu.h     public API (tek başlık)
 src/core/                       çekirdek + internal API
-src/render/                     layout / box / ANSI / glyph'ler
+src/render/                     row + region katmanı, layout / box / ANSI / glyph'ler
 src/input/                      nav + komut modu
 src/widgets/                    her row tipi için bir .c
 ports/mock/                     test için TX + cmd capture portu
@@ -72,7 +72,7 @@ içinde `#ifndef` guard'ı ile tanımlı; CMake `target_compile_definitions`
 | `MENU_BUF_SIZE`     |    `16` | `read()` çağrısına geçen yığın tampon       |
 | `MENU_CMD_BUF`      |    `64` | Komut modu satır tamponu                    |
 | `MENU_INPUT_BUF`    |    `16` | INPUT widget editör tamponu                 |
-| `MENU_ROW_BUF`      |   `256` | `row_t` derleme tamponu (ANSI dahil)        |
+| `MENU_ROW_BUF`      |   `256` | row derleme tamponu (ANSI dahil)            |
 | `ATC_MENU_STACK_DEPTH` |  `4` | Sub-menu nav stack maksimum derinliği       |
 
 `MENU_INNER_W`, `MENU_GROUP_LABEL_W`, `MENU_SUBMENU_LABEL_W`,

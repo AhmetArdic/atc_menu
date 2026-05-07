@@ -4,6 +4,7 @@
  */
 
 #include "render/render.h"
+#include "render/row.h"
 #include "widgets/widget.h"
 
 #include <errno.h>
@@ -15,6 +16,7 @@ static struct {
     bool                          active;
     uint8_t                       pos;
     char                          buf[MENU_INPUT_BUF];
+    size_t                        index;
     const atc_menu_item_t        *item;
 } S;
 
@@ -24,6 +26,7 @@ void widget_input_reset(void) {
     S.active = false;
     S.pos    = 0;
     S.buf[0] = '\0';
+    S.index  = 0;
     S.item   = NULL;
 }
 
@@ -45,14 +48,14 @@ static void render_active(int zebra_idx, const atc_menu_item_t *it) {
     if (n > 0 && (size_t)n < cap - ep) ep += (size_t)n;
     edit[ep] = '\0';
 
+    char key_buf[2] = { it->key ? it->key : ' ', 0 };
+
     row_t r;
-    row_open(&r, zebra_idx);
-    row_key(&r, it->key);
-    row_gap(&r);
-    row_cell(&r, MENU_LABEL_COL,    NULL,         it->label);
-    row_gap(&r);
-    row_cell(&r, MENU_INPUT_EDIT_W, ANSI_FG_VAL,  edit);
-    row_close(&r);
+    row_begin(&r, &ROW_LAYOUT_INPUT_EDIT, zebra_idx);
+    row_set(&r, 0, NULL, key_buf);
+    row_set(&r, 1, NULL, it->label);
+    row_set(&r, 2, NULL, edit);
+    row_end(&r);
 }
 
 static void render(int zebra_idx, const atc_menu_item_t *it) {
@@ -154,7 +157,7 @@ void widget_input_key(char k) {
         if (S.pos) {
             S.pos--;
             S.buf[S.pos] = '\0';
-            atc_menu_render();
+            menu_render_row_at(S.index);
         }
         return;
     }
@@ -162,7 +165,7 @@ void widget_input_key(char k) {
         && char_acceptable(S.item->input_type, k)) {
         S.buf[S.pos++] = k;
         S.buf[S.pos]   = '\0';
-        atc_menu_render();
+        menu_render_row_at(S.index);
     }
 }
 
@@ -177,10 +180,10 @@ static void validate(const atc_menu_item_t *it) {
 }
 
 static void on_key(const atc_menu_item_t *it, size_t index) {
-    (void)index;
     S.active = true;
     S.pos    = 0;
     S.buf[0] = '\0';
+    S.index  = index;
     S.item   = it;
     atc_menu_render();
 }

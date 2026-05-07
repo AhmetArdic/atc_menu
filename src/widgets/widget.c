@@ -4,6 +4,7 @@
  */
 
 #include "render/render.h"
+#include "render/row.h"
 #include "widgets/widget.h"
 
 #include <string.h>
@@ -65,14 +66,17 @@ void widget_render_scalar(int zebra_idx, const atc_menu_item_t *it) {
     atc_status_t st                 = ATC_ST_NONE;
     if (it->read) it->read(val, sizeof val, &st);
 
-    render_cells_t cells = {
-        .key    = it->key,
-        .label  = it->label,
-        .value  = val,
-        .unit   = it->unit,
-        .status = st,
-    };
-    render_row_cells(zebra_idx, &cells);
+    char key_buf[2] = { it->key ? it->key : ' ', 0 };
+    const status_disp_t *sd = status_disp(st);
+
+    row_t r;
+    row_begin(&r, &ROW_LAYOUT_SCALAR, zebra_idx);
+    row_set(&r, 0, NULL,      key_buf);
+    row_set(&r, 1, NULL,      it->label);
+    row_set(&r, 2, NULL,      val);
+    row_set(&r, 3, NULL,      it->unit);
+    row_set(&r, 4, sd->color, sd->text);
+    row_end(&r);
 }
 
 void widget_validate_label_unit(const atc_menu_item_t *it) {
