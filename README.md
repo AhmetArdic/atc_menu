@@ -17,10 +17,10 @@ UART üzerinden çalışan, tablo-driven, allocation-free C11 debug menü framew
 
 ```
 include/atc_menu/atc_menu.h     public API (tek başlık)
-src/core/                       çekirdek + internal API
-src/render/                     row + region katmanı, layout / box / ANSI / glyph'ler
-src/input/                      nav + komut modu
-src/widgets/                    her row tipi için bir .c
+src/menu.c                      public API + handle_key + cmd/INPUT/CHOICE editor'leri
+src/render.c                    tüm rendering: row primitive'leri, chrome, per-type
+src/nav.c                       sub-menü nav stack + breadcrumb
+src/{ansi,layout,symbols}.h     ANSI / column genişlikleri / UTF-8 glyph'ler
 ports/mock/                     test için TX + cmd capture portu
 tests/                          CTest unit testleri
 examples/demo.c                 Serial demo (Windows + POSIX)
@@ -49,17 +49,16 @@ CMake seçenekleri:
 | `ATC_MENU_WIDGET_INPUT`    | `ON`    | `ATC_ROW_INPUT` widget'ını derle                             |
 | `ATC_MENU_INPUT_FLOAT`     | `ON`    | INPUT'ta `ATC_INPUT_FLOAT` parser'ı (`strtod`'u link'e çeker)|
 
-İhtiyaç duyulmayan widget'ları kapatmak kütüphane boyutunu küçültür —
-hepsi `OFF` iken minimal build referans build'in ~%29'unu yer (gömülü
-hedef için anlamlı). Kapalı widget'a karşılık gelen `ATC_ROW_*` satırı
-bir tabloda kullanılırsa init validation `widget_ops()` `NULL` döndürür
-ve satır boş render olur.
+İhtiyaç duyulmayan widget'ları kapatmak kütüphane boyutunu küçültür
+(gömülü hedef için anlamlı). Kapalı widget'a karşılık gelen `ATC_ROW_*`
+satırı bir tabloda kullanılırsa render switch'i o tipi atlar ve satır
+boş render olur.
 
 ### Layout / buffer override'ları
 
-Tüm sütun genişliği ve buffer boyutu sabitleri `src/render/layout.h`
-içinde `#ifndef` guard'ı ile tanımlı; CMake `target_compile_definitions`
-(ya da `-DMENU_X=Y`) ile override edilebilir.
+Tüm sütun genişliği ve buffer boyutu sabitleri `src/layout.h` içinde
+`#ifndef` guard'ı ile tanımlı; CMake `target_compile_definitions` (ya
+da `-DMENU_X=Y`) ile override edilebilir.
 
 | Define                   | Default | Anlam                                       |
 |--------------------------|--------:|---------------------------------------------|
@@ -259,7 +258,7 @@ collides with built-in ...`):
 | `?` | tam path'i status'a yaz          |
 | `:` | komut modu (port.cmd ayarlı ise) |
 
-Tuşlar `src/core/internal.h` içinde `ATC_KEY_REFRESH`, `ATC_KEY_BACK`,
+Tuşlar `src/internal.h` içinde `ATC_KEY_REFRESH`, `ATC_KEY_BACK`,
 `ATC_KEY_PATH`, `ATC_KEY_CMD` define'larıyla tanımlı; tek noktadan
 değiştirilebilir.
 

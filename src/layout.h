@@ -11,9 +11,7 @@
  *      ^   ^^^^^                      ^^^^^^        ^^^^     ^^^^^
  *      KEY LABEL                      VALUE         UNIT     STATUS
  *
- * Each named region is a fixed-width slot inside the row. Override any
- * default by defining the macro before including this header (e.g., from a
- * project-wide -D flag or CMake target_compile_definitions).
+ * Override any default by defining the macro before including this header.
  */
 
 #ifndef MENU_REGION_KEY_W
@@ -54,6 +52,8 @@
      MENU_REGION_GAP_W + MENU_REGION_STATUS_W)
 
 #define MENU_REGION_NOTE_W   MENU_INNER_W
+
+#define MENU_HEADER_LINES    3
 
 #ifndef MENU_BUF_SIZE
 #define MENU_BUF_SIZE    16

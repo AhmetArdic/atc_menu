@@ -18,7 +18,6 @@
 #define ANSI_HOME      "\033[H"
 #define ANSI_EOL       "\033[K"
 #define ANSI_CLR_BELOW "\033[J"
-#define ANSI_GOTO_FMT     "\033[%d;1H"
-#define ANSI_GOTO_XY_FMT  "\033[%d;%dH"
+#define ANSI_GOTO_FMT  "\033[%d;1H"
 
 #endif

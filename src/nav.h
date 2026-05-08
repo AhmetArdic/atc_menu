@@ -6,7 +6,7 @@
 #ifndef ATC_MENU_NAV_H
 #define ATC_MENU_NAV_H
 
-#include "core/internal.h"
+#include "internal.h"
 
 #ifndef ATC_MENU_STACK_DEPTH
 #define ATC_MENU_STACK_DEPTH 4

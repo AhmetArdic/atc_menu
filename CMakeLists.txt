@@ -17,28 +17,10 @@ option(ATC_MENU_INPUT_FLOAT   "Enable FLOAT input parser (pulls strtod)" ON)
 # Core library
 # ---------------------------------------------------------------------------
 add_library(atc_menu STATIC
-    src/core/menu.c
-    src/render/render.c
-    src/render/row.c
-    src/input/nav.c
-    src/input/cmdmode.c
-    src/widgets/widget.c
-    src/widgets/widget_group.c
-    src/widgets/widget_submenu.c
-    src/widgets/widget_value.c
-    src/widgets/widget_state.c
-    src/widgets/widget_action.c
+    src/menu.c
+    src/render.c
+    src/nav.c
 )
-
-if(ATC_MENU_WIDGET_BAR)
-    target_sources(atc_menu PRIVATE src/widgets/widget_bar.c)
-endif()
-if(ATC_MENU_WIDGET_CHOICE)
-    target_sources(atc_menu PRIVATE src/widgets/widget_choice.c)
-endif()
-if(ATC_MENU_WIDGET_INPUT)
-    target_sources(atc_menu PRIVATE src/widgets/widget_input.c)
-endif()
 
 target_include_directories(atc_menu
     PUBLIC
