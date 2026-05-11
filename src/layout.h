@@ -1,77 +1,60 @@
 /*
  * Copyright (C) 2026 Ahmet Talha ARDIC
  * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Layout configuration.
+ *
+ * Four knobs you may want to tune. Pass via CMake (-DLABEL_W=32) or
+ * edit this file. Everything else derives from these; in particular,
+ * INPUT_BUF (max chars an INPUT row accepts) scales with VALUE_W and
+ * UNIT_W so a wider edit area automatically allows longer typed input.
  */
 
 #ifndef ATC_LAYOUT_H
 #define ATC_LAYOUT_H
 
-/*
- *   |  K   LABEL                      VALUE         UNIT     STAT  |
- *      ^   ^^^^^                      ^^^^^^        ^^^^     ^^^^^
- *      KEY LABEL                      VALUE         UNIT     STATUS
- *
- * Override any default by defining the macro before including this header.
- */
-
-#ifndef MENU_REGION_KEY_W
-#define MENU_REGION_KEY_W       1
-#endif
-#ifndef MENU_REGION_LABEL_W
-#define MENU_REGION_LABEL_W    24
-#endif
-#ifndef MENU_REGION_VALUE_W
-#define MENU_REGION_VALUE_W    10
-#endif
-#ifndef MENU_REGION_UNIT_W
-#define MENU_REGION_UNIT_W      5
-#endif
-#ifndef MENU_REGION_STATUS_W
-#define MENU_REGION_STATUS_W    1
-#endif
-#ifndef MENU_REGION_GAP_W
-#define MENU_REGION_GAP_W       3
+#ifndef LABEL_W
+#define LABEL_W    24   /* label column width (cols) */
 #endif
 
-#define MENU_INNER_W   (MENU_REGION_KEY_W +                          \
-                        MENU_REGION_GAP_W + MENU_REGION_LABEL_W +    \
-                        MENU_REGION_GAP_W + MENU_REGION_VALUE_W +    \
-                        MENU_REGION_GAP_W + MENU_REGION_UNIT_W +     \
-                        MENU_REGION_GAP_W + MENU_REGION_STATUS_W)
-
-#define MENU_REGION_GROUP_LABEL_W                                    \
-    (MENU_INNER_W - MENU_REGION_KEY_W - MENU_REGION_GAP_W)
-
-#define MENU_REGION_SUBMENU_PROMPT_W  2
-#define MENU_REGION_SUBMENU_LABEL_W                                  \
-    (MENU_INNER_W - MENU_REGION_KEY_W - MENU_REGION_GAP_W -          \
-     MENU_REGION_SUBMENU_PROMPT_W)
-
-#define MENU_REGION_INPUT_EDIT_W                                     \
-    (MENU_REGION_VALUE_W + MENU_REGION_GAP_W + MENU_REGION_UNIT_W +  \
-     MENU_REGION_GAP_W + MENU_REGION_STATUS_W)
-
-#define MENU_REGION_NOTE_W   MENU_INNER_W
-
-#define MENU_HEADER_LINES    3
-
-#ifndef MENU_BUF_SIZE
-#define MENU_BUF_SIZE    16
-#endif
-#ifndef MENU_CMD_BUF
-#define MENU_CMD_BUF     64
-#endif
-#ifndef MENU_INPUT_BUF
-#define MENU_INPUT_BUF   16
-#endif
-#ifndef MENU_ROW_BUF
-#define MENU_ROW_BUF    256
+#ifndef VALUE_W
+#define VALUE_W    10   /* value column width (cols) — INPUT typing capacity scales with this */
 #endif
 
-#define UTF8_MAX_BYTES   4
+#ifndef UNIT_W
+#define UNIT_W      5   /* unit column width (cols) */
+#endif
 
-#define MENU_REGION_VALUE_BUF      (MENU_REGION_VALUE_W * UTF8_MAX_BYTES + 1)
-#define MENU_REGION_INPUT_EDIT_BUF (MENU_REGION_INPUT_EDIT_W * UTF8_MAX_BYTES \
-                                    + MENU_INPUT_BUF + 1)
+#ifndef NAV_DEPTH
+#define NAV_DEPTH   4   /* max submenu nesting */
+#endif
+
+/* Fixed internal dimensions (rarely need tuning). */
+
+#define KEY_W             1
+#define STATUS_W          1
+#define GAP_W             3
+#define SUBMENU_PROMPT_W  2
+#define HEADER_LINES      3
+
+/* Derived row widths. */
+
+#define INNER_W          (KEY_W + GAP_W + LABEL_W + GAP_W + VALUE_W + \
+                          GAP_W + UNIT_W + GAP_W + STATUS_W)
+#define GROUP_LABEL_W    (INNER_W - KEY_W - GAP_W)
+#define SUBMENU_LABEL_W  (INNER_W - KEY_W - GAP_W - SUBMENU_PROMPT_W)
+#define INPUT_EDIT_W     (VALUE_W + GAP_W + UNIT_W + GAP_W + STATUS_W)
+#define NOTE_W            INNER_W
+#define CHOICE_STR_MAX   (VALUE_W - 4)
+
+/* Buffers — derived so they scale with the column widths above. */
+
+#define INPUT_BUF        (INPUT_EDIT_W - 2)    /* user-typable chars + null (auto-scales with VALUE_W) */
+#define INPUT_EDIT_BUF   (INPUT_BUF + 16)      /* displayed editor text (prompt + buf + cursor + margin) */
+#define READ_BUF         (VALUE_W + 8)         /* read() callback stack buffer */
+#define VALUE_BUF        (VALUE_W * 4 + 24)    /* composed bar/choice text (UTF-8 worst-case + brackets) */
+#define ROW_BUF          (INNER_W * 4 + 128)   /* row composition (cells * UTF-8 + ANSI overhead) */
+
+#define CMD_BUF          64                    /* command line input (independent of row widths) */
 
 #endif

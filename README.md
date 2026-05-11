@@ -4,14 +4,12 @@ UART üzerinden çalışan, tablo-driven, allocation-free C11 debug menü framew
 
 ## Özellikler
 
-- Tek soyutlama: `row` — group / value / state / action / submenu / **bar / choice / input**
+- Tek soyutlama: `row` — group / value / state / action / submenu / bar / choice / input
 - `static const` tablo, sıfır dinamik bellek, transport-agnostic (port vtable)
 - Flicker-free render: cursor-home + line-erase, full clear yok
-- UTF-8 box drawing + ANSI renk (terminal/font Nerd Font ya da modern Unicode coverage gerektirir)
+- UTF-8 box drawing + ANSI renk (terminal Nerd Font ya da modern Unicode coverage gerektirir)
 - Built-in tuşlar: `r` refresh · `b` back · `?` path · `:` komut modu
-- Native sub-menu (`ATC_ROW_SUBMENU`): çerçeve nav stack'ini kendi yönetir
-- Project metadata header'ı: project / version / author / build (`atc_menu_init`'e geçilir)
-- Per-screen statik notlar: tablo `notes` field'ı (footer'a dim renderle çıkar)
+- Native sub-menu nav stack, breadcrumb path, per-screen statik notlar
 
 ## Dizin yapısı
 
@@ -20,7 +18,8 @@ include/atc_menu/atc_menu.h     public API (tek başlık)
 src/menu.c                      public API + handle_key + cmd/INPUT/CHOICE editor'leri
 src/render.c                    tüm rendering: row primitive'leri, chrome, per-type
 src/nav.c                       sub-menü nav stack + breadcrumb
-src/{ansi,layout,symbols}.h     ANSI / column genişlikleri / UTF-8 glyph'ler
+src/{ansi,layout,symbols}.h     ANSI / kolon genişlikleri / UTF-8 glyph'ler
+src/{internal,nav,render}.h     internal header'lar
 ports/mock/                     test için TX + cmd capture portu
 tests/                          CTest unit testleri
 examples/demo.c                 Serial demo (Windows + POSIX)
@@ -28,57 +27,39 @@ examples/demo.c                 Serial demo (Windows + POSIX)
 
 ## Build & test
 
-Windows + MinGW (gcc + mingw32-make):
-
 ```
-cmake -S . -B build -G "MinGW Makefiles"
+cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Linux / macOS'ta default generator yeterli — `-G` flag'ini atla.
+Windows + MinGW: `cmake -S . -B build -G "MinGW Makefiles"`.
 
 CMake seçenekleri:
 
-| Option                     | Default | Etki                                                         |
-|----------------------------|---------|--------------------------------------------------------------|
-| `ATC_MENU_BUILD_TESTS`     | `ON`    | `tests/` altındaki CTest hedefleri                           |
-| `ATC_MENU_BUILD_EXAMPLES`  | `OFF`   | `examples/demo` (Windows + Linux/macOS serial)               |
-| `ATC_MENU_WIDGET_BAR`      | `ON`    | `ATC_ROW_BAR` widget'ını derle                               |
-| `ATC_MENU_WIDGET_CHOICE`   | `ON`    | `ATC_ROW_CHOICE` widget'ını derle                            |
-| `ATC_MENU_WIDGET_INPUT`    | `ON`    | `ATC_ROW_INPUT` widget'ını derle                             |
-| `ATC_MENU_INPUT_FLOAT`     | `ON`    | INPUT'ta `ATC_INPUT_FLOAT` parser'ı (`strtod`'u link'e çeker)|
+| Option                     | Default | Etki                                |
+|----------------------------|---------|-------------------------------------|
+| `ATC_MENU_BUILD_TESTS`     | `ON`    | CTest hedefleri                     |
+| `ATC_MENU_BUILD_EXAMPLES`  | `OFF`   | `examples/demo` (Windows + POSIX)   |
 
-İhtiyaç duyulmayan widget'ları kapatmak kütüphane boyutunu küçültür
-(gömülü hedef için anlamlı). Kapalı widget'a karşılık gelen `ATC_ROW_*`
-satırı bir tabloda kullanılırsa render switch'i o tipi atlar ve satır
-boş render olur.
+### Layout tunables
 
-### Layout / buffer override'ları
+`src/layout.h` içinde dört parametre CMake `-D` ile override edilebilir:
 
-Tüm sütun genişliği ve buffer boyutu sabitleri `src/layout.h` içinde
-`#ifndef` guard'ı ile tanımlı; CMake `target_compile_definitions` (ya
-da `-DMENU_X=Y`) ile override edilebilir.
+| Define      | Default | Etki                                       |
+|-------------|--------:|--------------------------------------------|
+| `LABEL_W`   |    `24` | Label sütunu genişliği                     |
+| `VALUE_W`   |    `10` | Value sütunu — `INPUT_BUF` bununla büyür   |
+| `UNIT_W`    |     `5` | Unit sütunu — INPUT edit alanı da büyür    |
+| `NAV_DEPTH` |     `4` | Maksimum sub-menü iç içe derinliği         |
 
-| Define                   | Default | Anlam                                       |
-|--------------------------|--------:|---------------------------------------------|
-| `MENU_REGION_KEY_W`      |     `1` | Hotkey region genişliği                     |
-| `MENU_REGION_LABEL_W`    |    `24` | Label region genişliği                      |
-| `MENU_REGION_VALUE_W`    |    `10` | Value region genişliği (BAR/CHOICE buna sığar) |
-| `MENU_REGION_UNIT_W`     |     `5` | Unit region genişliği                       |
-| `MENU_REGION_STATUS_W`   |     `1` | Status sembol region'ı                      |
-| `MENU_REGION_GAP_W`      |     `3` | Region'lar arası boşluk                     |
-| `MENU_BUF_SIZE`          |    `16` | `read()` çağrısına geçen yığın tampon       |
-| `MENU_CMD_BUF`           |    `64` | Komut modu satır tamponu                    |
-| `MENU_INPUT_BUF`         |    `16` | INPUT widget editör tamponu                 |
-| `MENU_ROW_BUF`           |   `256` | row derleme tamponu (ANSI dahil)            |
-| `ATC_MENU_STACK_DEPTH`   |     `4` | Sub-menu nav stack maksimum derinliği       |
+```
+cmake -S . -B build -DLABEL_W=32 -DVALUE_W=20 -DUNIT_W=8 -DNAV_DEPTH=8
+```
 
-`MENU_INNER_W`, `MENU_REGION_GROUP_LABEL_W`,
-`MENU_REGION_SUBMENU_LABEL_W`, `MENU_REGION_INPUT_EDIT_W`,
-`MENU_REGION_NOTE_W`, `MENU_REGION_VALUE_BUF`,
-`MENU_REGION_INPUT_EDIT_BUF` yukarıdakilerden türetilir; ayrıca
-tanımlamaya gerek yok.
+`VALUE_W` / `UNIT_W` büyütülünce INPUT'ta yazılabilen karakter sayısı da
+otomatik artar (`INPUT_BUF = INPUT_EDIT_W - 2`). Diğer sabitler (`KEY_W`,
+`STATUS_W`, `GAP_W` vb.) nadiren değiştiği için `layout.h`'i doğrudan düzenle.
 
 ## Hızlı başlangıç
 
@@ -118,121 +99,34 @@ for (;;) atc_menu_handle_key(uart_getc());
 ```
 
 Yeni transport eklemek = `atc_menu_port_t` içine `write` (ve isteğe bağlı
-`cmd`) implemente etmek. Yeni satır eklemek = tabloya bir entry + bir
-read/action callback.
+`cmd`) implemente etmek. Yeni satır eklemek = tabloya entry + read/action
+callback.
 
-## Serial demo
+## Row tipleri
 
-Windows (MinGW):
+| Tip               | Görsel                              | Notlar                                      |
+|-------------------|-------------------------------------|---------------------------------------------|
+| `ATC_ROW_GROUP`   | `   Sensors`                        | Bölüm başlığı; key opsiyonel (toplu refresh)|
+| `ATC_ROW_VALUE`   | `t  Temp   45.3 C   OK`             | Read-only skaler                            |
+| `ATC_ROW_STATE`   | `L  LED    ON`                      | İki-durumlu; `action` toggle eder           |
+| `ATC_ROW_ACTION`  | `1  Self test`                      | Hotkey'e bağlı komut                        |
+| `ATC_ROW_SUBMENU` | `i  ❯ MPU9250 IMU`                  | Alt tabloya drill-down                      |
+| `ATC_ROW_BAR`     | `B  Battery ▕████▎  ▏ 78 % OK`      | 8 hücreli yatay seviye (1/8 sub-cell)       |
+| `ATC_ROW_CHOICE`  | `m  Mode    ❮ NORMAL ❯      OK`     | N-state cycle; opsiyonel commit callback    |
+| `ATC_ROW_INPUT`   | `d  PWM Duty       50 %     OK`     | Inline editor; INT/FLOAT/HEX/STR            |
 
-```
-cmake -S . -B build -G "MinGW Makefiles" -DATC_MENU_BUILD_EXAMPLES=ON
-cmake --build build --target demo
-build/examples/demo.exe COM8        # veya başka bir COM portu
-build/examples/demo.exe COM3 9600   # opsiyonel baud override (default 115200 8N1)
-```
-
-Linux / macOS:
-
-```
-cmake -S . -B build -DATC_MENU_BUILD_EXAMPLES=ON
-cmake --build build --target demo
-build/examples/demo /dev/ttyUSB0          # veya /dev/ttyACM0, /dev/tty.usbserial-*, ...
-build/examples/demo /dev/ttyUSB0 9600     # opsiyonel baud override (default 115200 8N1)
-```
-
-Donanımsız test için `socat` ile sanal seri çift oluştur, bir ucunu demo'ya
-diğerini terminale ver:
-
-```
-socat -d -d pty,raw,echo=0 pty,raw,echo=0   # /dev/pts/<a> ve /dev/pts/<b> üretir
-build/examples/demo /dev/pts/<a>            # ilk terminal
-screen /dev/pts/<b> 115200                  # ikinci terminal (picocom/minicom de olur)
-```
-
-Windows tarafında PuTTY / TeraTerm ile aynı portu aç. Demo home menüde Quick view + BME280
-Env satırlarını inline gösterir; IMU / Power / Visual Widgets sayfaları
-SUBMENU drill-down ile açılır. IMU sayfası kendi içinde Accel/Gyro/Mag
-sub-page'lerine ayrılır (2 derinlik). Sub-menüde `b` parent'a döner, `?`
-tam path'i (`Home > MPU9250 IMU > Accelerometer`) status satırına basar.
-
-Home hotkey'leri:
-
-| Tuş | Etki                           |
-|-----|--------------------------------|
-| `t` | MCU temp göster                |
-| `v` | Battery voltage göster         |
-| `e` | BME280 Env grubunu yenile      |
-| `i` | IMU sayfasına geç              |
-| `p` | Power sayfasına geç            |
-| `w` | Visual Widgets sayfasına geç   |
-| `L` | LED toggle                     |
-| `1` | Self-test çalıştır             |
-| `:` | Komut modu (`set temp 55.0`, `set vbat 3.10`, `set load 1800`) |
-
-Demo dört sensör simülasyonu içerir: tek-değerli (MCU temp + battery),
-3-değerli INA219 (V/I/P), 4-değerli BME280 (T/H/P/Alt), 9-değerli MPU9250
-9-DoF IMU. Sim değerleri her ~50 ms'de rastgele yürüyüşle güncellenir;
-`r` ile yenileyince yeni değerler görünür. `set load <mA>` INA219 akımını
-OK → WARN → ERR eşiklerinin üstüne itmek için.
-
-## Sensör başına ergonomi
-
-INA219 (3 satır) ve özellikle 9-DoF IMU (9 satır) callback'leri hızla
-boilerplate'e döner. Demo bunu üç paternle çözüyor (`examples/sensor_helpers.h`,
-`examples/sensor_sim.{h,c}`):
-
-1. **Sensör başına struct + tick.** Her sensör (`ina219_t`, `bme280_t`,
-   `mpu9250_t`) küçük bir struct'ta yaşar. `sensor_sim_tick()` (gerçekte
-   bir I²C sürücüsü) struct'ı günceller; menü sadece field'ı okur.
-2. **`READ_F` makrosu.** Bir field'i okuyup formatlayan callback'i tek
-   satırda üretir:
-   ```c
-   READ_F(ina_v, g_ina.bus_v, "%.2f",
-          st_range(g_ina.bus_v, 3.0f, 4.2f))
-   ```
-   `st_range/max/min` yardımcıları sık kullanılan threshold mantığını
-   sarmalar.
-3. **Grup başına sensör.** Tabloda her chip için `ATC_ROW_GROUP`
-   (`"INA219 Power"`, `"BME280 Env"`, `"MPU9250 IMU"`) — kalabalık menüde
-   göz hızla doğru bloğa gider.
-
-Bu yardımcılar `examples/` altında, kütüphane API'sinin parçası değil.
-
-## Sub-menü ile satır sayısını yönetmek
-
-Sensör sayısı arttıkça tüm satırları tek ekrana sığdırmak okunaksızlaşır.
-Çözüm: `ATC_ROW_SUBMENU` row + alt tablo. Her satır kendi `submenu`
-pointer'ını taşır; çerçeve nav stack'ini yönetir, `b` parent'a döner, `?`
-tam path'i status satırında basar.
-
-```c
-static const atc_menu_item_t imu_menu[] = {
-    { .type = ATC_ROW_GROUP, .label = "MPU9250 IMU" },
-    { .type = ATC_ROW_VALUE, .label = "Accel X", .unit = "g", .read = rd_ax },
-    /* ... */
-};
-static const atc_menu_table_t imu_table = {
-    .items = imu_menu, .count = sizeof imu_menu / sizeof imu_menu[0],
-};
-
-static const atc_menu_item_t home_menu[] = {
-    { .type = ATC_ROW_VALUE,   .key = 't', .label = "MCU Temp", .unit = "C",
-      .read = rd_temp },
-    { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "MPU9250 IMU",
-      .submenu = &imu_table },
-};
-```
-
-SUBMENU satırı bir prompt marker (`SYM_SUBMENU`) ile çıkar; footer'a
-`[b] back  [?] path` eklenir. Submenu içinde başka SUBMENU olabilir —
-demo `home → MPU9250 IMU → {Accel|Gyro|Mag}` 2 derinlik gezinti gösterir.
-Stack derinliği varsayılan 4; `-DATC_MENU_STACK_DEPTH=8` ile artırılabilir.
+**SUBMENU**: `submenu` pointer'ı zorunlu, derinlik `NAV_DEPTH` ile sınırlı.
+**BAR**: `read` yüzdeyi string olarak yazar (`"78"`); renk `atc_status_t`'ten.
+**CHOICE**: `choices` + `choice_idx` zorunlu. `choice_commit == NULL` →
+immediate cycle; non-NULL → Enter ile commit, Esc revert. String'ler
+`CHOICE_STR_MAX = VALUE_W - 4` (default 6 karakter).
+**INPUT**: `input_commit` zorunlu. `input_min`/`input_max` INT/HEX için
+range; validation fail editör'ü açık tutar, hata status'a basılır.
 
 ### Per-screen notlar
 
-`atc_menu_table_t.notes` ile dim renkli statik metin satırlarını footer
-üstünde basabilirsin — sayfanın "ne yapar" özeti için ideal:
+`atc_menu_table_t.notes` ile dim renkli statik satırlar footer üstüne
+basılır — sayfanın "ne yapar" özeti için:
 
 ```c
 static const char *const power_notes[] = {
@@ -245,7 +139,7 @@ static const atc_menu_table_t power_table = {
 };
 ```
 
-### Rezerve sistem tuşları
+## Rezerve sistem tuşları
 
 Çerçeve dört tuşu kendi kullanımı için ayırır — kullanıcı satırlarına
 birini atamak init validation'da port'a uyarı yazar (`WARN: key 'X'
@@ -258,83 +152,36 @@ collides with built-in ...`):
 | `?` | tam path'i status'a yaz          |
 | `:` | komut modu (port.cmd ayarlı ise) |
 
-Tuşlar `src/internal.h` içinde `ATC_KEY_REFRESH`, `ATC_KEY_BACK`,
-`ATC_KEY_PATH`, `ATC_KEY_CMD` define'larıyla tanımlı; tek noktadan
-değiştirilebilir.
+`src/internal.h` içinde `KEY_REFRESH`, `KEY_BACK`, `KEY_PATH`, `KEY_CMD`
+define'larıyla tanımlı.
 
-## Görsel widget'lar
+## Serial demo
 
-Üç ek satır tipi gömülü-debug menüsünün eksik kalan kategorilerini doldurur.
-Hepsi mevcut sütun yerleşimini bozmaz; kalıcılık (flash/NVS) kullanıcının
-sorumluluğunda.
-
-### `ATC_ROW_BAR` — yatay seviye çubuğu
-
-Value sütununa 8 hücrelik yatay bir çubuk yerleşir; `read` sayısal
-yüzdeyi (`"78"`) yazar, çerçeve dolu/boş hücreleri (sub-cell precision
-ile, 1/8 adımlarla) çizer ve yüzdeyi unit sütununda basar. Renk
-`read`'in döndürdüğü `atc_status_t`'ten gelir — eşik mantığı kullanıcı
-kodunda kalır.
-
-```c
-static void rd_battery(char *b, size_t n, atc_status_t *st) {
-    int pct = battery_pct();
-    snprintf(b, n, "%d", pct);
-    *st = (pct < 20) ? ATC_ST_ERR : (pct < 40) ? ATC_ST_WARN : ATC_ST_OK;
-}
-
-{ .type = ATC_ROW_BAR, .key = 'b', .label = "Battery", .read = rd_battery },
+```
+cmake -S . -B build -DATC_MENU_BUILD_EXAMPLES=ON
+cmake --build build --target demo
+build/examples/demo /dev/ttyUSB0          # Linux/macOS
+build/examples/demo /dev/ttyUSB0 9600     # opsiyonel baud (default 115200 8N1)
+build/examples/demo.exe COM8              # Windows
 ```
 
-### `ATC_ROW_CHOICE` — N-state mod döngüsü
+Donanımsız test için `socat` ile sanal seri çift:
 
-İki kullanım modu var:
-
-- **Immediate cycle** (`choice_commit == NULL`): tuşa her basışta
-  `*choice_idx` modulo ilerler, satır yerinde tazelenir. Backend hemen
-  haberdar olur.
-- **Browse-then-commit** (`choice_commit != NULL`): tuşa basmak edit
-  mode'u açar; sonraki tuşlar pending seçimi gezdirir. `Enter` commit'ler
-  ve callback'i tetikler, `Esc` revert eder. Backend yalnızca onay anında
-  yazılır — pahalı veya yan-etkili setter'lar için doğru pattern.
-
-```c
-static const char *power_modes[] = { "ECO", "NORMAL", "TURBO" };
-static uint8_t     power_idx     = 1;
-static void        commit_power_mode(void) { apply_power_mode(power_idx); }
-
-{ .type = ATC_ROW_CHOICE, .key = 'm', .label = "Power Mode",
-  .choices = power_modes, .choice_count = 3, .choice_idx = &power_idx,
-  .choice_commit = commit_power_mode },         /* opsiyonel */
+```
+socat -d -d pty,raw,echo=0 pty,raw,echo=0   # /dev/pts/<a> ve /dev/pts/<b>
+build/examples/demo /dev/pts/<a>
+screen /dev/pts/<b> 115200                  # picocom/minicom de olur
 ```
 
-Seçim string'leri ≤6 karakter olmalı (init uyarır).
+Home hotkey'leri: `t` MCU temp · `v` battery voltage · `e` BME280 env
+refresh · `i` IMU · `p` Power · `w` Visual Widgets · `L` LED toggle ·
+`1` self-test · `:` komut modu (`set temp 55.0`, `set vbat 3.10`,
+`set load 1800`).
 
-### `ATC_ROW_INPUT` — runtime parametre girişi
-
-Tuşa basınca inline editor açılır; çerçeve sonraki tüm tuşları yutar:
-`Enter` validate + commit, `Esc` iptal, `Backspace` siler, geçerli
-karakter buffer'a eklenir. Validation başarısız ise editor açık kalır ve
-hata status satırına basılır. Tip seçenekleri: `ATC_INPUT_INT`,
-`ATC_INPUT_FLOAT`, `ATC_INPUT_HEX`, `ATC_INPUT_STR`.
-
-```c
-static int32_t pwm_duty = 50;
-
-static void rd_pwm(char *b, size_t n, atc_status_t *st) {
-    snprintf(b, n, "%ld", (long)pwm_duty); *st = ATC_ST_OK;
-}
-static bool commit_pwm(const char *s) {
-    pwm_duty = atol(s); apply_pwm(pwm_duty); return true;
-}
-
-{ .type = ATC_ROW_INPUT, .key = 'd', .label = "PWM Duty", .unit = "%",
-  .read = rd_pwm, .input_type = ATC_INPUT_INT,
-  .input_min = 0, .input_max = 100, .input_commit = commit_pwm },
-```
-
-Demo `examples/demo.c` `Visual Widgets` alt-menüsünde her üç widget'ın
-çalışan örneğini içerir (`w` tuşu).
+Demo dört sensör simülasyonu içerir: MCU temp + battery (skaler), INA219
+(3 değer), BME280 (4 değer), MPU9250 9-DoF IMU (9 değer, sub-menülerle).
+Sim değerleri ~50 ms'de rastgele yürüyüşle güncellenir. Sensör başına
+struct + `READ_F` makrosu paterni için `examples/sensor_{helpers.h,sim.{c,h}}`.
 
 ## Test mimarisi
 

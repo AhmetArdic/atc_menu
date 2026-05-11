@@ -22,17 +22,13 @@ enum {
     KEY_DEL = 127,
 };
 
-#define ATC_KEY_REFRESH 'r'
-#define ATC_KEY_BACK    'b'
-#define ATC_KEY_PATH    '?'
-#define ATC_KEY_CMD     ':'
+#define KEY_REFRESH 'r'
+#define KEY_BACK    'b'
+#define KEY_PATH    '?'
+#define KEY_CMD     ':'
 
 const atc_menu_port_t *menu_port(void);
 const atc_menu_info_t *menu_info(void);
-
-bool menu_status_dirty(void);
-void menu_set_status_dirty(bool dirty);
-
 int  menu_printf(const char *fmt, ...);
 void menu_park_cursor(void);
 

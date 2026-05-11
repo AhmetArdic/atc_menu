@@ -8,10 +8,6 @@
 
 #include "internal.h"
 
-#ifndef ATC_MENU_STACK_DEPTH
-#define ATC_MENU_STACK_DEPTH 4
-#endif
-
 void nav_reset(const atc_menu_table_t *root);
 
 const atc_menu_item_t *nav_items(void);

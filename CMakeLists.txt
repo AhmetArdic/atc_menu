@@ -8,11 +8,6 @@ set(CMAKE_C_EXTENSIONS OFF)
 option(ATC_MENU_BUILD_TESTS    "Build unit tests"  ON)
 option(ATC_MENU_BUILD_EXAMPLES "Build example app" OFF)
 
-option(ATC_MENU_WIDGET_BAR    "Enable BAR widget"    ON)
-option(ATC_MENU_WIDGET_CHOICE "Enable CHOICE widget" ON)
-option(ATC_MENU_WIDGET_INPUT  "Enable INPUT widget"  ON)
-option(ATC_MENU_INPUT_FLOAT   "Enable FLOAT input parser (pulls strtod)" ON)
-
 # ---------------------------------------------------------------------------
 # Core library
 # ---------------------------------------------------------------------------
@@ -29,20 +24,20 @@ target_include_directories(atc_menu
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_compile_definitions(atc_menu PUBLIC
-    ATC_MENU_WIDGET_BAR=$<BOOL:${ATC_MENU_WIDGET_BAR}>
-    ATC_MENU_WIDGET_CHOICE=$<BOOL:${ATC_MENU_WIDGET_CHOICE}>
-    ATC_MENU_WIDGET_INPUT=$<BOOL:${ATC_MENU_WIDGET_INPUT}>
-    ATC_MENU_INPUT_FLOAT=$<BOOL:${ATC_MENU_INPUT_FLOAT}>
-)
-
 target_compile_options(atc_menu PRIVATE
     $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -Wpedantic>
     $<$<C_COMPILER_ID:MSVC>:/W4>
 )
 
+# Layout tunables — pass via cmake -DLABEL_W=32 etc. See src/layout.h.
+foreach(_param LABEL_W VALUE_W UNIT_W NAV_DEPTH)
+    if(DEFINED ${_param})
+        target_compile_definitions(atc_menu PUBLIC ${_param}=${${_param}})
+    endif()
+endforeach()
+
 # ---------------------------------------------------------------------------
-# Mock port (only needed when tests are enabled, but cheap to expose)
+# Mock port
 # ---------------------------------------------------------------------------
 add_library(atc_menu_mock STATIC
     ports/mock/mock_port.c
