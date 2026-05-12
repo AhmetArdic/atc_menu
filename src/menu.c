@@ -59,6 +59,12 @@ static struct {
     uint8_t                pending;
 } g_choice;
 
+static struct {
+    bool            active;
+    atc_log_ring_t *ring;
+    uint16_t        offset;   /* lines scrolled back from newest */
+} g_log_view;
+
 /* ================================================================ footer */
 
 static void emit_footer(void) {
@@ -92,7 +98,12 @@ static void emit_footer(void) {
 /* ================================================================ public render */
 
 void atc_menu_render(void) {
-    if (!nav_items() || !g_port) return;
+    if (!g_port) return;
+    if (g_log_view.active) {
+        render_log_view(g_log_view.ring, g_log_view.offset);
+        return;
+    }
+    if (!nav_items()) return;
     render_all();
     emit_footer();
 }
@@ -309,6 +320,51 @@ static void choice_key(char k) {
     }
 }
 
+/* ================================================================ LOG VIEW mode */
+
+static void log_view_reset(void) {
+    g_log_view.active = false;
+    g_log_view.ring   = NULL;
+    g_log_view.offset = 0;
+}
+
+static void log_view_enter(atc_log_ring_t *ring) {
+    g_log_view.active = true;
+    g_log_view.ring   = ring;
+    g_log_view.offset = 0;
+    atc_menu_render();
+}
+
+static void log_view_key(char k) {
+    const atc_log_ring_t *r = g_log_view.ring;
+    if (k == 'q' || k == 'Q' || k == KEY_ESC) {
+        log_view_reset();
+        atc_menu_render();
+        return;
+    }
+    if (!r) return;
+    if (k == 'k') {
+        if (r->count && g_log_view.offset + 1 < r->count) g_log_view.offset++;
+        atc_menu_render();
+        return;
+    }
+    if (k == 'j') {
+        if (g_log_view.offset) g_log_view.offset--;
+        atc_menu_render();
+        return;
+    }
+    if (k == 'g') {
+        g_log_view.offset = r->count ? (uint16_t)(r->count - 1) : 0;
+        atc_menu_render();
+        return;
+    }
+    if (k == 'G') {
+        g_log_view.offset = 0;
+        atc_menu_render();
+        return;
+    }
+}
+
 /* ================================================================ row dispatch */
 
 static void handle_row_key(const atc_menu_item_t *it, size_t index) {
@@ -326,6 +382,9 @@ static void handle_row_key(const atc_menu_item_t *it, size_t index) {
             return;
         case ATC_ROW_CHOICE:
             choice_press(it, index);
+            return;
+        case ATC_ROW_LOG_VIEW:
+            log_view_enter(it->log_ring);
             return;
         default:
             if (it->action) it->action();
@@ -355,6 +414,7 @@ void atc_menu_init(const atc_menu_table_t *table,
     cmd_reset();
     input_reset();
     choice_reset();
+    log_view_reset();
     nav_reset(table);
 
     if (!table || !table->items || !port) return;
@@ -385,9 +445,10 @@ void atc_menu_init(const atc_menu_table_t *table,
 void atc_menu_handle_key(char k) {
     if (!nav_items() || !g_port) return;
 
-    if (g_cmd.active)    { cmd_key(k);    return; }
-    if (g_input.active)  { input_key(k);  return; }
-    if (g_choice.active) { choice_key(k); return; }
+    if (g_log_view.active) { log_view_key(k); return; }
+    if (g_cmd.active)      { cmd_key(k);      return; }
+    if (g_input.active)    { input_key(k);    return; }
+    if (g_choice.active)   { choice_key(k);   return; }
 
     switch (k) {
         case KEY_REFRESH: atc_menu_render(); return;

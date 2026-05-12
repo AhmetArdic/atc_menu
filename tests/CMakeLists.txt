@@ -12,6 +12,11 @@ atc_add_test(test_handle_key)
 atc_add_test(test_render)
 atc_add_test(test_header)
 atc_add_test(test_widgets)
+atc_add_test(test_log_ring)
+atc_add_test(test_macros)
+atc_add_test(test_builder)
+atc_add_test(test_log_view)
+atc_add_test(test_hybrid)
 
 # Visual-inspection dumps (not CTest targets — run by hand to eyeball output).
 add_executable(dump_warn dump_warn.c)

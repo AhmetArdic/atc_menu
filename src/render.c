@@ -361,6 +361,18 @@ static void render_input_edit(int z, const atc_menu_item_t *it, const char *edit
 
 /* ================================================================ dispatch */
 
+static void render_log_button(int z, const atc_menu_item_t *it) {
+    char k[2] = { it->key ? it->key : ' ', 0 };
+    buf_t b = {0};
+    open_row(&b, z);
+    col(&b, KEY_W,            false, ANSI_FG_KEY, k);
+    gap(&b);
+    col(&b, SUBMENU_PROMPT_W, false, ANSI_FG_KEY, SYM_SUBMENU);
+    col(&b, SUBMENU_LABEL_W,  false, NULL,        it->label);
+    close_row(&b);
+    buf_flush(&b);
+}
+
 static void render_item(int z, const atc_menu_item_t *it) {
     switch (it->type) {
         case ATC_ROW_GROUP:    render_group(z, it);    return;
@@ -371,6 +383,7 @@ static void render_item(int z, const atc_menu_item_t *it) {
         case ATC_ROW_INPUT:    render_value(z, it);    return;
         case ATC_ROW_BAR:      render_bar(z, it);      return;
         case ATC_ROW_CHOICE:   render_choice(z, it, NULL, false); return;
+        case ATC_ROW_LOG_VIEW: render_log_button(z, it); return;
     }
 }
 
@@ -412,6 +425,35 @@ void render_row_choice(size_t index, const char *pending_label) {
     park_at_row(index);
     render_choice((int)index, &nav_items()[index], pending_label, true);
     menu_park_cursor();
+}
+
+void render_log_view(const atc_log_ring_t *r, uint16_t offset) {
+    menu_printf("%s", ANSI_HOME);
+    menu_printf(ANSI_BOLD "=== EVENT LOG ===" ANSI_RESET
+                ANSI_DIM "  (q=back  k/j=scroll  g=top  G=bottom)" ANSI_RESET
+                ANSI_EOL "\r\n\r\n");
+
+    if (!r || r->rows == 0) {
+        menu_printf(ANSI_DIM "(uninitialised log)" ANSI_RESET ANSI_EOL "\r\n");
+        menu_printf("%s", ANSI_CLR_BELOW);
+        return;
+    }
+
+    /* Fixed-height viewport equal to the ring's slot count: oldest visible
+     * line at the top, newest at the bottom (auto-follow). `offset` slides
+     * the window towards older entries; empty slots show as a dim tilde. */
+    for (uint16_t i = 0; i < r->rows; i++) {
+        uint16_t from_newest = (uint16_t)(r->rows - 1 - i + offset);
+        const char *line = atc_menu_log_get(r, from_newest);
+        if (line && *line)
+            menu_printf("%s" ANSI_EOL "\r\n", line);
+        else
+            menu_printf(ANSI_DIM "~" ANSI_RESET ANSI_EOL "\r\n");
+    }
+
+    menu_printf("\r\n" ANSI_DIM "offset=%u  seq=%u" ANSI_RESET ANSI_EOL "\r\n",
+                (unsigned)offset, (unsigned)r->seq);
+    menu_printf("%s", ANSI_CLR_BELOW);
 }
 
 void render_group_span(size_t start) {
@@ -482,5 +524,12 @@ void render_validate_item(const atc_menu_item_t *it) {
                 && it->input_min > it->input_max)
                 menu_printf("WARN: ATC_ROW_INPUT '%c' min > max\r\n", k);
             warn_label_unit(it); return;
+        case ATC_ROW_LOG_VIEW:
+            if (!it->log_ring)
+                menu_printf("WARN: ATC_ROW_LOG_VIEW '%c' missing log_ring\r\n", k);
+            if (it->label && strlen(it->label) > SUBMENU_LABEL_W)
+                menu_printf("WARN: LOG_VIEW label '%s' exceeds %d cols\r\n",
+                            it->label, SUBMENU_LABEL_W);
+            return;
     }
 }

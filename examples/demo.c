@@ -30,6 +30,16 @@
  *   set temp <C>    override MCU temp
  *   set vbat <V>    override battery voltage
  *   set load <mA>   override INA219 current target (push to WARN/ERR)
+ *
+ * This file showcases both menu-definition surfaces of the framework:
+ *   - Leaf menus use the compile-time ATC_MENU() macro family — they
+ *     live in .rodata and cost zero RAM.
+ *   - The home menu uses the runtime builder (atc_menu_begin/...) so it
+ *     can be rewired at boot or in response to events without touching
+ *     the framework internals.
+ *
+ * Actions push diagnostic lines into a ring buffer; the row keyed 'E'
+ * opens a fullscreen log scrollback over that ring.
  */
 
 #ifdef _WIN32
@@ -51,6 +61,7 @@
 #endif
 
 #include "atc_menu/atc_menu.h"
+#include "atc_menu/atc_menu_macros.h"
 #include "sensor_helpers.h"
 #include "sensor_sim.h"
 
@@ -77,6 +88,13 @@ static int    g_serial = -1;
 #endif
 static size_t g_tx_bytes;
 
+/* -------------------------------------------------------------- event log */
+
+static char           g_log_storage[16][64];
+static atc_log_ring_t g_event_log;
+
+/* -------------------------------------------------------------- read callbacks */
+
 static bool app_led_on;
 
 static void rd_temp(char *b, size_t n, atc_status_t *st) {
@@ -97,13 +115,16 @@ static void rd_led(char *b, size_t n, atc_status_t *st) {
 static void act_toggle_led(void) {
     app_led_on = !app_led_on;
     fprintf(stderr, "  [backend] LED -> %s\n", app_led_on ? "ON" : "OFF");
+    atc_menu_log_printf(&g_event_log, "LED %s", app_led_on ? "ON" : "OFF");
 }
 
 static void act_self_test(void) {
     fprintf(stderr, "  [backend] self test running...\n");
+    atc_menu_log_printf(&g_event_log, "self test running");
     atc_menu_status("self test running...");
     sleep_ms(300);
     atc_menu_status("self test ok");
+    atc_menu_log_printf(&g_event_log, "self test ok");
     fprintf(stderr, "  [backend] self test ok\n");
 }
 
@@ -137,9 +158,11 @@ static const char *app_fan_choices[] = { "AUTO", "LOW", "MED", "HIGH" };
 
 static void commit_pwr_mode(void) {
     fprintf(stderr, "  [backend] Power mode -> %s\n", app_pwr_choices[app_pwr_mode]);
+    atc_menu_log_printf(&g_event_log, "pwr -> %s", app_pwr_choices[app_pwr_mode]);
 }
 static void commit_fan_mode(void) {
     fprintf(stderr, "  [backend] Fan curve -> %s\n",  app_fan_choices[app_fan_mode]);
+    atc_menu_log_printf(&g_event_log, "fan -> %s", app_fan_choices[app_fan_mode]);
 }
 
 static void rd_battery_pct(char *b, size_t n, atc_status_t *st) {
@@ -171,37 +194,118 @@ static void rd_threshold(char *b, size_t n, atc_status_t *st) {
 static bool commit_pwm_duty(const char *s) {
     app_pwm_duty = atol(s);
     fprintf(stderr, "  [backend] PWM duty -> %ld %%\n", (long)app_pwm_duty);
+    atc_menu_log_printf(&g_event_log, "pwm duty %ld%%", (long)app_pwm_duty);
     return true;
 }
 static bool commit_threshold(const char *s) {
     app_threshold_mv = atol(s);
     fprintf(stderr, "  [backend] Threshold -> %ld mV\n", (long)app_threshold_mv);
+    atc_menu_log_printf(&g_event_log, "threshold %ld mV", (long)app_threshold_mv);
     return true;
 }
 
-static const atc_menu_item_t widgets_menu[] = {
-    { .type = ATC_ROW_GROUP,  .label = "Levels (BAR)" },
-    { .type = ATC_ROW_BAR,    .key = 'B', .label = "Battery",
-      .read = rd_battery_pct },
-    { .type = ATC_ROW_BAR,    .key = 'c', .label = "CPU Load",
-      .read = rd_cpu_load },
+/* -------------------------------------------------------------- leaf menus (Flash) */
 
-    { .type = ATC_ROW_GROUP,  .label = "Modes (CHOICE)" },
-    { .type = ATC_ROW_CHOICE, .key = 'm', .label = "Power Mode",
-      .choices = app_pwr_choices, .choice_count = 3, .choice_idx = &app_pwr_mode,
-      .choice_commit = commit_pwr_mode },
-    { .type = ATC_ROW_CHOICE, .key = 'f', .label = "Fan Curve",
-      .choices = app_fan_choices, .choice_count = 4, .choice_idx = &app_fan_mode,
-      .choice_commit = commit_fan_mode },
+ATC_MENU(imu_accel, ATC_NO_NOTES,
+    ATC_GROUP(    "MPU9250 Accelerometer"),
+    ATC_VALUE(0, "Accel X", "g", rd_mpu_ax),
+    ATC_VALUE(0, "Accel Y", "g", rd_mpu_ay),
+    ATC_VALUE(0, "Accel Z", "g", rd_mpu_az),
+);
 
-    { .type = ATC_ROW_GROUP,  .label = "Setpoints (INPUT)" },
-    { .type = ATC_ROW_INPUT,  .key = 'd', .label = "PWM Duty", .unit = "%",
-      .read = rd_pwm_duty, .input_type = ATC_INPUT_INT,
-      .input_min = 0, .input_max = 100, .input_commit = commit_pwm_duty },
-    { .type = ATC_ROW_INPUT,  .key = 'h', .label = "Threshold", .unit = "mV",
-      .read = rd_threshold, .input_type = ATC_INPUT_INT,
-      .input_min = 0, .input_max = 5000, .input_commit = commit_threshold },
+ATC_MENU(imu_gyro, ATC_NO_NOTES,
+    ATC_GROUP(    "MPU9250 Gyroscope"),
+    ATC_VALUE(0, "Gyro X", "dps", rd_mpu_gx),
+    ATC_VALUE(0, "Gyro Y", "dps", rd_mpu_gy),
+    ATC_VALUE(0, "Gyro Z", "dps", rd_mpu_gz),
+);
+
+ATC_MENU(imu_mag, ATC_NO_NOTES,
+    ATC_GROUP(    "MPU9250 Magnetometer"),
+    ATC_VALUE(0, "Mag X", "uT", rd_mpu_mx),
+    ATC_VALUE(0, "Mag Y", "uT", rd_mpu_my),
+    ATC_VALUE(0, "Mag Z", "uT", rd_mpu_mz),
+);
+
+static const char *const imu_notes[] = {
+    "9-DoF IMU, I2C @ 0x68, sample rate 100 Hz.",
+    "Drill into a sub-axis page for individual readouts.",
 };
+
+ATC_MENU(imu, ATC_WITH_NOTES(imu_notes),
+    ATC_GROUP  (     "MPU9250 IMU 9-DoF"),
+    ATC_SUBMENU('a', "Accelerometer", &imu_accel),
+    ATC_SUBMENU('g', "Gyroscope",     &imu_gyro),
+    ATC_SUBMENU('m', "Magnetometer",  &imu_mag),
+);
+
+static const char *const power_notes[] = {
+    "INA219 high-side current monitor, 0.1 ohm shunt.",
+    "':set load <mA>' to push WARN/ERR thresholds.",
+};
+
+ATC_MENU(power, ATC_WITH_NOTES(power_notes),
+    ATC_GROUP(    "INA219 Power"),
+    ATC_VALUE(0, "Bus V",   "V",  rd_ina_v),
+    ATC_VALUE(0, "Current", "mA", rd_ina_i),
+    ATC_VALUE(0, "Power",   "mW", rd_ina_p),
+);
+
+ATC_MENU(widgets, ATC_NO_NOTES,
+    ATC_GROUP (     "Levels (BAR)"),
+    ATC_BAR   ('B', "Battery",          rd_battery_pct),
+    ATC_BAR   ('c', "CPU Load",         rd_cpu_load),
+
+    ATC_GROUP (     "Modes (CHOICE)"),
+    ATC_CHOICE('m', "Power Mode", app_pwr_choices, 3, &app_pwr_mode, commit_pwr_mode),
+    ATC_CHOICE('f', "Fan Curve",  app_fan_choices, 4, &app_fan_mode, commit_fan_mode),
+
+    ATC_GROUP (     "Setpoints (INPUT)"),
+    ATC_INPUT ('d', "PWM Duty",  "%",  rd_pwm_duty,
+               ATC_INPUT_INT, 0, 100,  commit_pwm_duty),
+    ATC_INPUT ('h', "Threshold", "mV", rd_threshold,
+               ATC_INPUT_INT, 0, 5000, commit_threshold),
+);
+
+/* -------------------------------------------------------------- home menu (RAM, built at boot) */
+
+static const char *const home_notes[] = {
+    "Press a row's hotkey to interact with it.",
+    "Type ':' for command mode (e.g., set temp 30).",
+    "Press 'E' for the event log.",
+};
+
+static atc_menu_item_t  home_items[16];
+static atc_menu_table_t home;
+
+static void build_home(void) {
+    atc_menu_begin   (&home, home_items, ARR_LEN(home_items));
+
+    atc_menu_group   (&home, "Quick view");
+    atc_menu_value   (&home, 't', "MCU Temp", "C", rd_temp);
+    atc_menu_value   (&home, 'v', "Battery",  "V", rd_vbat);
+
+    atc_menu_group   (&home, "BME280 Env");
+    atc_menu_value   (&home,  0, "Temperature", "C",   rd_bme_t);
+    atc_menu_value   (&home,  0, "Humidity",    "%",   rd_bme_h);
+    atc_menu_value   (&home,  0, "Pressure",    "hPa", rd_bme_p);
+    atc_menu_value   (&home,  0, "Altitude",    "m",   rd_bme_a);
+
+    atc_menu_group   (&home, "Drill into");
+    atc_menu_submenu (&home, 'i', "MPU9250 IMU",   &imu);
+    atc_menu_submenu (&home, 'p', "INA219 Power",  &power);
+    atc_menu_submenu (&home, 'w', "Visual Widgets", &widgets);
+
+    atc_menu_group   (&home, "Control");
+    atc_menu_state   (&home, 'L', "LED",       rd_led, act_toggle_led);
+    atc_menu_action  (&home, '1', "Self test", act_self_test);
+    atc_menu_log_view(&home, 'E', "Event log", &g_event_log);
+
+    atc_menu_notes   (&home, home_notes, ARR_LEN(home_notes));
+    atc_menu_end     (&home);
+}
+
+/* -------------------------------------------------------------- command parser */
 
 static float app_load_target_ma = -1.0f;  /* <0 = use sim default */
 
@@ -209,13 +313,16 @@ static void app_cmd(const char *line) {
     if (strncmp(line, "set temp ", 9) == 0) {
         g_mcu.mcu_temp_c = (float)atof(line + 9);
         fprintf(stderr, "  [backend] MCU temp override -> %.1f C\n", g_mcu.mcu_temp_c);
+        atc_menu_log_printf(&g_event_log, "temp -> %.1f C", g_mcu.mcu_temp_c);
     } else if (strncmp(line, "set vbat ", 9) == 0) {
         g_mcu.vbat_v = (float)atof(line + 9);
         fprintf(stderr, "  [backend] Vbat override -> %.2f V\n", g_mcu.vbat_v);
+        atc_menu_log_printf(&g_event_log, "vbat -> %.2f V", g_mcu.vbat_v);
     } else if (strncmp(line, "set load ", 9) == 0) {
         app_load_target_ma = (float)atof(line + 9);
         g_ina.current_ma   = app_load_target_ma;
         fprintf(stderr, "  [backend] INA219 load -> %.0f mA\n", app_load_target_ma);
+        atc_menu_log_printf(&g_event_log, "load -> %.0f mA", app_load_target_ma);
     } else if (line[0]) {
         atc_menu_status("unknown cmd");
     }
@@ -228,108 +335,7 @@ static const atc_menu_info_t demo_info = {
     .build   = __DATE__,
 };
 
-static const atc_menu_item_t imu_accel_menu[] = {
-    { .type = ATC_ROW_GROUP, .label = "MPU9250 Accelerometer" },
-    { .type = ATC_ROW_VALUE, .label = "Accel X", .unit = "g", .read = rd_mpu_ax },
-    { .type = ATC_ROW_VALUE, .label = "Accel Y", .unit = "g", .read = rd_mpu_ay },
-    { .type = ATC_ROW_VALUE, .label = "Accel Z", .unit = "g", .read = rd_mpu_az },
-};
-static const atc_menu_table_t imu_accel_table = {
-    .items = imu_accel_menu, .count = ARR_LEN(imu_accel_menu),
-};
-
-static const atc_menu_item_t imu_gyro_menu[] = {
-    { .type = ATC_ROW_GROUP, .label = "MPU9250 Gyroscope" },
-    { .type = ATC_ROW_VALUE, .label = "Gyro X", .unit = "dps", .read = rd_mpu_gx },
-    { .type = ATC_ROW_VALUE, .label = "Gyro Y", .unit = "dps", .read = rd_mpu_gy },
-    { .type = ATC_ROW_VALUE, .label = "Gyro Z", .unit = "dps", .read = rd_mpu_gz },
-};
-static const atc_menu_table_t imu_gyro_table = {
-    .items = imu_gyro_menu, .count = ARR_LEN(imu_gyro_menu),
-};
-
-static const atc_menu_item_t imu_mag_menu[] = {
-    { .type = ATC_ROW_GROUP, .label = "MPU9250 Magnetometer" },
-    { .type = ATC_ROW_VALUE, .label = "Mag X", .unit = "uT", .read = rd_mpu_mx },
-    { .type = ATC_ROW_VALUE, .label = "Mag Y", .unit = "uT", .read = rd_mpu_my },
-    { .type = ATC_ROW_VALUE, .label = "Mag Z", .unit = "uT", .read = rd_mpu_mz },
-};
-static const atc_menu_table_t imu_mag_table = {
-    .items = imu_mag_menu, .count = ARR_LEN(imu_mag_menu),
-};
-
-static const atc_menu_item_t imu_menu[] = {
-    { .type = ATC_ROW_GROUP,   .label = "MPU9250 IMU 9-DoF" },
-    { .type = ATC_ROW_SUBMENU, .key = 'a', .label = "Accelerometer",
-      .submenu = &imu_accel_table },
-    { .type = ATC_ROW_SUBMENU, .key = 'g', .label = "Gyroscope",
-      .submenu = &imu_gyro_table },
-    { .type = ATC_ROW_SUBMENU, .key = 'm', .label = "Magnetometer",
-      .submenu = &imu_mag_table },
-};
-static const char *const imu_notes[] = {
-    "9-DoF IMU, I2C @ 0x68, sample rate 100 Hz.",
-    "Drill into a sub-axis page for individual readouts.",
-};
-static const atc_menu_table_t imu_table = {
-    .items = imu_menu, .count = ARR_LEN(imu_menu),
-    .notes = imu_notes, .note_count = ARR_LEN(imu_notes),
-};
-
-static const atc_menu_item_t power_menu[] = {
-    { .type = ATC_ROW_GROUP, .label = "INA219 Power" },
-    { .type = ATC_ROW_VALUE, .label = "Bus V",   .unit = "V",  .read = rd_ina_v },
-    { .type = ATC_ROW_VALUE, .label = "Current", .unit = "mA", .read = rd_ina_i },
-    { .type = ATC_ROW_VALUE, .label = "Power",   .unit = "mW", .read = rd_ina_p },
-};
-static const char *const power_notes[] = {
-    "INA219 high-side current monitor, 0.1 ohm shunt.",
-    "':set load <mA>' to push WARN/ERR thresholds.",
-};
-static const atc_menu_table_t power_table = {
-    .items = power_menu, .count = ARR_LEN(power_menu),
-    .notes = power_notes, .note_count = ARR_LEN(power_notes),
-};
-
-static const atc_menu_table_t widgets_table = {
-    .items = widgets_menu, .count = ARR_LEN(widgets_menu),
-};
-
-static const atc_menu_item_t home_menu[] = {
-    { .type = ATC_ROW_GROUP,   .label = "Quick view" },
-    { .type = ATC_ROW_VALUE,   .key = 't', .label = "MCU Temp", .unit = "C",
-      .read = rd_temp },
-    { .type = ATC_ROW_VALUE,   .key = 'v', .label = "Battery",  .unit = "V",
-      .read = rd_vbat },
-
-    { .type = ATC_ROW_GROUP,   .key = 'e', .label = "BME280 Env" },
-    { .type = ATC_ROW_VALUE,   .label = "Temperature", .unit = "C",   .read = rd_bme_t },
-    { .type = ATC_ROW_VALUE,   .label = "Humidity",    .unit = "%",   .read = rd_bme_h },
-    { .type = ATC_ROW_VALUE,   .label = "Pressure",    .unit = "hPa", .read = rd_bme_p },
-    { .type = ATC_ROW_VALUE,   .label = "Altitude",    .unit = "m",   .read = rd_bme_a },
-
-    { .type = ATC_ROW_GROUP,   .label = "Drill into" },
-    { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "MPU9250 IMU",
-      .submenu = &imu_table },
-    { .type = ATC_ROW_SUBMENU, .key = 'p', .label = "INA219 Power",
-      .submenu = &power_table },
-    { .type = ATC_ROW_SUBMENU, .key = 'w', .label = "Visual Widgets",
-      .submenu = &widgets_table },
-
-    { .type = ATC_ROW_GROUP,   .label = "Control" },
-    { .type = ATC_ROW_STATE,   .key = 'L', .label = "LED",
-      .read = rd_led, .action = act_toggle_led },
-    { .type = ATC_ROW_ACTION,  .key = '1', .label = "Self test",
-      .action = act_self_test },
-};
-static const char *const home_notes[] = {
-    "Press a row's hotkey to interact with it.",
-    "Type ':' for command mode (e.g., set temp 30).",
-};
-static const atc_menu_table_t home_table = {
-    .items = home_menu, .count = ARR_LEN(home_menu),
-    .notes = home_notes, .note_count = ARR_LEN(home_notes),
-};
+/* -------------------------------------------------------------- serial port */
 
 static void com_write(const char *buf, size_t len) {
     g_tx_bytes += len;
@@ -480,8 +486,13 @@ int main(int argc, char **argv) {
     if (!serial_open(argv[1], baud)) return 1;
 
     sensor_sim_init();
+    atc_menu_log_init(&g_event_log, &g_log_storage[0][0],
+                      (uint16_t)ARR_LEN(g_log_storage),
+                      (uint16_t)sizeof g_log_storage[0]);
+    atc_menu_log_push(&g_event_log, "boot");
 
-    atc_menu_init(&home_table, &serial_port, &demo_info);
+    build_home();
+    atc_menu_init(&home, &serial_port, &demo_info);
     atc_menu_render();
     fprintf(stderr, "initial render: %zu B\n", g_tx_bytes);
 
