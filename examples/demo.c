@@ -31,12 +31,8 @@
  *   set vbat <V>    override battery voltage
  *   set load <mA>   override INA219 current target (push to WARN/ERR)
  *
- * This file showcases both menu-definition surfaces of the framework:
- *   - Leaf menus use the compile-time ATC_MENU() macro family — they
- *     live in .rodata and cost zero RAM.
- *   - The home menu uses the runtime builder (atc_menu_begin/...) so it
- *     can be rewired at boot or in response to events without touching
- *     the framework internals.
+ * Every menu is declared with the compile-time ATC_MENU() macro family,
+ * so the whole tree lives in .rodata and costs zero RAM.
  */
 
 #ifdef _WIN32
@@ -252,41 +248,33 @@ ATC_MENU(widgets, ATC_NO_NOTES,
                ATC_INPUT_INT, 0, 5000, commit_threshold),
 );
 
-/* -------------------------------------------------------------- home menu (RAM, built at boot) */
+/* -------------------------------------------------------------- home menu */
 
 static const char *const home_notes[] = {
     "Press a row's hotkey to interact with it.",
     "Type ':' for command mode (e.g., set temp 30).",
 };
 
-static atc_menu_item_t  home_items[16];
-static atc_menu_table_t home;
+ATC_MENU(home, ATC_WITH_NOTES(home_notes),
+    ATC_GROUP (     "Quick view"),
+    ATC_VALUE ('t', "MCU Temp", "C", rd_temp),
+    ATC_VALUE ('v', "Battery",  "V", rd_vbat),
 
-static void build_home(void) {
-    atc_menu_begin   (&home, home_items, ARR_LEN(home_items));
+    ATC_GROUP (   "BME280 Env"),
+    ATC_VALUE (0, "Temperature", "C",   rd_bme_t),
+    ATC_VALUE (0, "Humidity",    "%",   rd_bme_h),
+    ATC_VALUE (0, "Pressure",    "hPa", rd_bme_p),
+    ATC_VALUE (0, "Altitude",    "m",   rd_bme_a),
 
-    atc_menu_group   (&home, "Quick view");
-    atc_menu_value   (&home, 't', "MCU Temp", "C", rd_temp);
-    atc_menu_value   (&home, 'v', "Battery",  "V", rd_vbat);
+    ATC_GROUP (     "Drill into"),
+    ATC_SUBMENU('i', "MPU9250 IMU",    &imu),
+    ATC_SUBMENU('p', "INA219 Power",   &power),
+    ATC_SUBMENU('w', "Visual Widgets", &widgets),
 
-    atc_menu_group   (&home, "BME280 Env");
-    atc_menu_value   (&home,  0, "Temperature", "C",   rd_bme_t);
-    atc_menu_value   (&home,  0, "Humidity",    "%",   rd_bme_h);
-    atc_menu_value   (&home,  0, "Pressure",    "hPa", rd_bme_p);
-    atc_menu_value   (&home,  0, "Altitude",    "m",   rd_bme_a);
-
-    atc_menu_group   (&home, "Drill into");
-    atc_menu_submenu (&home, 'i', "MPU9250 IMU",   &imu);
-    atc_menu_submenu (&home, 'p', "INA219 Power",  &power);
-    atc_menu_submenu (&home, 'w', "Visual Widgets", &widgets);
-
-    atc_menu_group   (&home, "Control");
-    atc_menu_state   (&home, 'L', "LED",       rd_led, act_toggle_led);
-    atc_menu_action  (&home, '1', "Self test", act_self_test);
-
-    atc_menu_notes   (&home, home_notes, ARR_LEN(home_notes));
-    atc_menu_end     (&home);
-}
+    ATC_GROUP (     "Control"),
+    ATC_STATE ('L', "LED",       rd_led, act_toggle_led),
+    ATC_ACTION('1', "Self test", act_self_test),
+);
 
 /* -------------------------------------------------------------- command parser */
 
@@ -467,7 +455,6 @@ int main(int argc, char **argv) {
 
     sensor_sim_init();
 
-    build_home();
     atc_menu_init(&home, &serial_port, &demo_info);
     atc_menu_render();
     fprintf(stderr, "initial render: %zu B\n", g_tx_bytes);

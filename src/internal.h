@@ -12,6 +12,7 @@
 #include "layout.h"
 #include "symbols.h"
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -31,5 +32,10 @@ const atc_menu_port_t *menu_port(void);
 const atc_menu_info_t *menu_info(void);
 int  menu_printf(const char *fmt, ...);
 void menu_park_cursor(void);
+
+/* libc-free string/number helpers (see fmt.c). */
+int  atc_vsnprintf(char *out, size_t cap, const char *fmt, va_list ap);
+int  atc_snprintf(char *out, size_t cap, const char *fmt, ...);
+bool atc_parse_long(const char *s, int base, long *out);
 
 #endif

@@ -10,6 +10,11 @@
  * Table-driven, allocation-free, transport-agnostic. The framework owns
  * neither the RX nor TX path: callers feed received bytes via
  * atc_menu_handle_key() and provide a TX callback via ::atc_menu_port_t.
+ *
+ * Threading: single-threaded and non-reentrant. All entry points share
+ * module-static state, so never call them from an interrupt. Queue
+ * received bytes in your UART ISR and drain the queue into
+ * atc_menu_handle_key() from the main loop.
  */
 
 #ifndef ATC_MENU_H
@@ -65,7 +70,7 @@ typedef enum {
     ATC_ROW_SUBMENU,  /**< Drills into another items table. */
     ATC_ROW_BAR,      /**< Horizontal level bar (0..100 %). */
     ATC_ROW_CHOICE,   /**< N-state cycle (e.g., ECO/NORMAL/TURBO). */
-    ATC_ROW_INPUT,    /**< Runtime parameter entry (int/float/hex/string). */
+    ATC_ROW_INPUT,    /**< Runtime parameter entry (int/hex/string). */
 } atc_row_type_t;
 
 /**
@@ -73,7 +78,6 @@ typedef enum {
  */
 typedef enum {
     ATC_INPUT_INT,   /**< Signed decimal integer; bounded by input_min/input_max. */
-    ATC_INPUT_FLOAT, /**< Decimal fraction; bounded by input_min/input_max. */
     ATC_INPUT_HEX,   /**< Hex digits, optional 0x prefix; bounded by input_min/input_max. */
     ATC_INPUT_STR,   /**< Printable ASCII string; bounded by buffer length. */
 } atc_input_type_t;
@@ -154,7 +158,6 @@ typedef struct atc_menu_item {
 typedef struct atc_menu_table {
     const atc_menu_item_t *items;      /**< Row table. */
     size_t                 count;      /**< Number of rows in @ref items. */
-    size_t                 cap;        /**< Builder capacity. 0 for static tables. */
     const char *const     *notes;      /**< Optional. Array of note strings. */
     size_t                 note_count; /**< 0 to omit the notes block. */
 } atc_menu_table_t;
@@ -237,59 +240,6 @@ void atc_menu_handle_key(char k);
  * @param[in] msg  Null-terminated message.
  */
 void atc_menu_status(const char *msg);
-
-/* =========================================================================
- * Runtime builder API
- *
- * Use these to assemble a menu at runtime over a caller-provided item
- * buffer (typically `static atc_menu_item_t items[N];`). The same
- * `atc_menu_table_t` is consumed by atc_menu_init() afterwards. Use
- * the ATC_MENU macro family (atc_menu_macros.h) for Flash-resident
- * menus instead; both produce the same table type and interoperate
- * via SUBMENU references.
- * ========================================================================= */
-
-/**
- * @brief Reset @p t and bind it to a caller-owned item buffer.
- *
- * Count drops to 0; subsequent atc_menu_<row>() calls append into
- * @p items. May be called again to rebuild the menu in place.
- *
- * @param t      Table to (re-)initialise.
- * @param items  Backing storage (must remain valid for the table's life).
- * @param cap    Number of slots in @p items.
- */
-void atc_menu_begin(atc_menu_table_t *t, atc_menu_item_t *items, size_t cap);
-
-/**
- * @brief Mark the table as complete. Currently a no-op; reserved for
- *        future post-build validation hooks.
- */
-void atc_menu_end(atc_menu_table_t *t);
-
-/**
- * @brief Attach an optional notes block to the menu.
- */
-void atc_menu_notes(atc_menu_table_t *t, const char *const *notes, size_t n);
-
-void atc_menu_group   (atc_menu_table_t *t, const char *label);
-void atc_menu_value   (atc_menu_table_t *t, char key, const char *label,
-                       const char *unit, atc_read_fn_t read);
-void atc_menu_state   (atc_menu_table_t *t, char key, const char *label,
-                       atc_read_fn_t read, atc_action_fn_t action);
-void atc_menu_action  (atc_menu_table_t *t, char key, const char *label,
-                       atc_action_fn_t action);
-void atc_menu_submenu (atc_menu_table_t *t, char key, const char *label,
-                       const atc_menu_table_t *sub);
-void atc_menu_bar     (atc_menu_table_t *t, char key, const char *label,
-                       atc_read_fn_t read);
-void atc_menu_choice  (atc_menu_table_t *t, char key, const char *label,
-                       const char **choices, uint8_t count,
-                       uint8_t *idx_storage, atc_action_fn_t commit);
-void atc_menu_input   (atc_menu_table_t *t, char key, const char *label,
-                       const char *unit, atc_read_fn_t read,
-                       atc_input_type_t type, int32_t min, int32_t max,
-                       atc_input_fn_t commit);
 
 #ifdef __cplusplus
 }

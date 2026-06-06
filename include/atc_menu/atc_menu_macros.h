@@ -7,11 +7,8 @@
  * @file atc_menu_macros.h
  * @brief Compile-time syntactic sugar for declaring Flash-resident menus.
  *
- * The verb set mirrors the runtime builder API (atc_menu_group(),
- * atc_menu_value(), etc.); the macros expand to plain designated
- * initializers so the entire menu lives in .rodata with zero runtime
- * cost. Use these for stable menus; use the builder API when the menu
- * must change at runtime.
+ * The macros expand to plain designated initializers so the entire menu
+ * lives in .rodata with zero runtime cost.
  *
  *     static const char *const home_notes[] = {
  *         "Press hotkeys to interact.",

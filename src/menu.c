@@ -9,10 +9,7 @@
 #include "nav.h"
 #include "render.h"
 
-#include <errno.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* ================================================================ globals */
@@ -25,10 +22,10 @@ const atc_menu_info_t *menu_info(void) { return g_info; }
 
 int menu_printf(const char *fmt, ...) {
     if (!g_port || !g_port->write) return 0;
-    char buf[ROW_BUF];
+    static char buf[ROW_BUF]; /* non-reentrant: keep the row buffer off the stack */
     va_list ap;
     va_start(ap, fmt);
-    int n = vsnprintf(buf, sizeof buf, fmt, ap);
+    int n = atc_vsnprintf(buf, sizeof buf, fmt, ap);
     va_end(ap);
     if (n < 0) return n;
     size_t len = (size_t)n < sizeof buf ? (size_t)n : sizeof buf - 1;
@@ -147,7 +144,7 @@ static void input_reset(void) {
 static void input_paint(void) {
     char edit[INPUT_EDIT_BUF];
     size_t pos = 0;
-    int n = snprintf(edit + pos, sizeof edit - pos, "%s", SYM_INPUT_PROMPT);
+    int n = atc_snprintf(edit + pos, sizeof edit - pos, "%s", SYM_INPUT_PROMPT);
     if (n > 0) pos += (size_t)n;
 
     size_t copy = g_input.pos;
@@ -156,7 +153,7 @@ static void input_paint(void) {
     memcpy(edit + pos, g_input.buf, copy);
     pos += copy;
 
-    n = snprintf(edit + pos, sizeof edit - pos, "%s", SYM_INPUT_CURSOR);
+    n = atc_snprintf(edit + pos, sizeof edit - pos, "%s", SYM_INPUT_CURSOR);
     if (n > 0) pos += (size_t)n;
     edit[pos] = '\0';
 
@@ -167,8 +164,6 @@ static bool input_acceptable(atc_input_type_t t, char k) {
     switch (t) {
         case ATC_INPUT_INT:
             return (k >= '0' && k <= '9') || k == '-';
-        case ATC_INPUT_FLOAT:
-            return (k >= '0' && k <= '9') || k == '-' || k == '.';
         case ATC_INPUT_HEX:
             return (k >= '0' && k <= '9') || (k >= 'a' && k <= 'f')
                 || (k >= 'A' && k <= 'F') || k == 'x' || k == 'X';
@@ -185,22 +180,15 @@ static bool input_validate(void) {
     atc_input_type_t t = g_input.item->input_type;
     if (t == ATC_INPUT_STR) return true;
 
-    char *end = NULL;
-    long  v   = 0;
-    errno = 0;
-    if      (t == ATC_INPUT_HEX) v = strtol(g_input.buf, &end, 16);
-    else if (t == ATC_INPUT_INT) v = strtol(g_input.buf, &end, 10);
-    else                         v = (long)strtod(g_input.buf, &end);
-
-    if (errno == ERANGE || end == g_input.buf || (end && *end != '\0')) {
+    long v;
+    if (!atc_parse_long(g_input.buf, t == ATC_INPUT_HEX ? 16 : 10, &v)) {
         atc_menu_status("invalid: parse error");
         return false;
     }
-    if ((t == ATC_INPUT_INT || t == ATC_INPUT_HEX)
-        && (v < g_input.item->input_min || v > g_input.item->input_max)) {
+    if (v < g_input.item->input_min || v > g_input.item->input_max) {
         char msg[64];
-        snprintf(msg, sizeof msg, "out of range: %ld..%ld",
-                 (long)g_input.item->input_min, (long)g_input.item->input_max);
+        atc_snprintf(msg, sizeof msg, "out of range: %ld..%ld",
+                     (long)g_input.item->input_min, (long)g_input.item->input_max);
         atc_menu_status(msg);
         return false;
     }

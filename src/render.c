@@ -7,17 +7,24 @@
 #include "nav.h"
 
 #include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* ================================================================ buffer */
 
 typedef struct {
-    char        data[ROW_BUF];
+    char       *data;
     int         len;
     const char *bg;
 } buf_t;
+
+/* Non-reentrant: one row is composed at a time, so all buf_t instances
+ * share a single module-static scratch instead of a per-call stack array. */
+static char g_rowbuf[ROW_BUF];
+
+static buf_t buf_begin(void) {
+    buf_t b = { g_rowbuf, 0, "" };
+    return b;
+}
 
 static void buf_flush(buf_t *b) {
     const atc_menu_port_t *p = menu_port();
@@ -26,11 +33,11 @@ static void buf_flush(buf_t *b) {
 }
 
 static void buf_printf(buf_t *b, const char *fmt, ...) {
-    int avail = (int)sizeof b->data - b->len;
+    int avail = (int)ROW_BUF - b->len;
     if (avail <= 1) return;
     va_list ap;
     va_start(ap, fmt);
-    int n = vsnprintf(b->data + b->len, (size_t)avail, fmt, ap);
+    int n = atc_vsnprintf(b->data + b->len, (size_t)avail, fmt, ap);
     va_end(ap);
     if (n < 0)      return;
     if (n >= avail) n = avail - 1;
@@ -105,7 +112,7 @@ static void status_glyph(atc_status_t st, const char **color, const char **text)
 /* ================================================================ chrome */
 
 static void box_edge(const char *left, const char *right) {
-    buf_t b = {0};
+    buf_t b = buf_begin();
     buf_printf(&b, ANSI_DIM "%s", left);
     for (int i = 0; i < INNER_W; i++) buf_printf(&b, "%s", SYM_BOX_H);
     buf_printf(&b, "%s" ANSI_RESET ANSI_EOL "\r\n", right);
@@ -113,7 +120,7 @@ static void box_edge(const char *left, const char *right) {
 }
 
 static void box_top(const char *title, const char *version) {
-    buf_t b = {0};
+    buf_t b = buf_begin();
     buf_printf(&b, "%s", ANSI_DIM SYM_BOX_TL SYM_BOX_H);
     int used = 1;
 
@@ -147,7 +154,7 @@ static void info_row(const char *l, const char *r,
     if (lw > NOTE_W - rw) lw = NOTE_W - rw;
     int gap_w = NOTE_W - lw - rw;
 
-    buf_t b = {0};
+    buf_t b = buf_begin();
     buf_printf(&b, ANSI_DIM SYM_BOX_V ANSI_RESET);
     if (l_color && *l_color) buf_printf(&b, "%s", l_color);
     buf_printf(&b, "%.*s" ANSI_RESET, lw, l ? l : "");
@@ -173,7 +180,7 @@ static void render_header(void) {
 static int notes_lines(size_t count) { return count == 0 ? 0 : 1 + (int)count; }
 
 static void render_note_row(const char *note) {
-    buf_t b = {0};
+    buf_t b = buf_begin();
     open_row(&b, 0);
     col(&b, NOTE_W, false, ANSI_DIM, note);
     close_row(&b);
@@ -183,7 +190,7 @@ static void render_note_row(const char *note) {
 static void render_notes(const char *const *notes, size_t count) {
     if (!notes || count == 0) return;
 
-    buf_t b = {0};
+    buf_t b = buf_begin();
     buf_printf(&b, ANSI_DIM SYM_BOX_V);
     for (int i = 0; i < INNER_W; i++) buf_printf(&b, "%s", SYM_BOX_DOT);
     buf_printf(&b, SYM_BOX_V ANSI_RESET ANSI_EOL "\r\n");
@@ -211,13 +218,19 @@ void render_validate_notes(const char *const *notes, size_t count) {
     }
 }
 
+/* Line (1-based) of the box's bottom border. Header + rows + notes block,
+ * then the closing border one line below. Every cursor anchor derives from
+ * this so the footer/park math has a single source of truth. */
+static int box_bottom_line(void) {
+    return HEADER_LINES + 1 + (int)nav_count() + notes_lines(nav_note_count());
+}
+
 int render_footer_anchor_line(void) {
-    return HEADER_LINES + (int)nav_count() + notes_lines(nav_note_count()) + 2;
+    return box_bottom_line() + 1;
 }
 
 void menu_park_cursor(void) {
-    int line = HEADER_LINES + (int)nav_count() + notes_lines(nav_note_count()) + 4;
-    menu_printf(ANSI_GOTO_FMT, line);
+    menu_printf(ANSI_GOTO_FMT, box_bottom_line() + 3);
 }
 
 /* ================================================================ row renderers */
@@ -229,7 +242,7 @@ static void scalar_row(int z, const atc_menu_item_t *it,
     status_glyph(st, &sd_color, &sd_text);
     char k[2] = { it->key ? it->key : ' ', 0 };
 
-    buf_t b = {0};
+    buf_t b = buf_begin();
     open_row(&b, z);
     col(&b, KEY_W,    false, ANSI_FG_KEY, k);                          gap(&b);
     col(&b, LABEL_W,  false, NULL,        it->label);                  gap(&b);
@@ -249,7 +262,7 @@ static void render_value(int z, const atc_menu_item_t *it) {
 
 static void render_group(int z, const atc_menu_item_t *it) {
     char k[2] = { it->key ? it->key : ' ', 0 };
-    buf_t b = {0};
+    buf_t b = buf_begin();
     open_row(&b, z);
     col(&b, KEY_W,         false, ANSI_FG_KEY, k);
     gap(&b);
@@ -260,7 +273,7 @@ static void render_group(int z, const atc_menu_item_t *it) {
 
 static void render_submenu(int z, const atc_menu_item_t *it) {
     char k[2] = { it->key ? it->key : ' ', 0 };
-    buf_t b = {0};
+    buf_t b = buf_begin();
     open_row(&b, z);
     col(&b, KEY_W,            false, ANSI_FG_KEY, k);
     gap(&b);
@@ -290,19 +303,24 @@ static const char *bar_color(atc_status_t st) {
                                : ANSI_FG_OK;
 }
 
+static char *append(char *dst, const char *src) {
+    while (*src) *dst++ = *src++;
+    return dst;
+}
+
 static void compose_bar(int pct, char *bar, char *unit, size_t unit_cap) {
     int subs = (pct * BAR_LEVELS + 50) / 100;
     int full = subs / BAR_SUB;
     int part = subs % BAR_SUB;
 
-    bar[0] = '\0';
-    strcat(bar, SYM_BAR_LBR);
-    for (int i = 0; i < full; i++) strcat(bar, SYM_BAR_FILL);
-    if (part) strcat(bar, BAR_PARTIAL[part]);
-    for (int i = full + (part > 0); i < BAR_CELLS; i++) strcat(bar, SYM_BAR_EMPTY);
-    strcat(bar, SYM_BAR_RBR);
+    char *p = append(bar, SYM_BAR_LBR);
+    for (int i = 0; i < full; i++) p = append(p, SYM_BAR_FILL);
+    if (part) p = append(p, BAR_PARTIAL[part]);
+    for (int i = full + (part > 0); i < BAR_CELLS; i++) p = append(p, SYM_BAR_EMPTY);
+    p = append(p, SYM_BAR_RBR);
+    *p = '\0';
 
-    snprintf(unit, unit_cap, "%d %%", pct);
+    atc_snprintf(unit, unit_cap, "%d %%", pct);
 }
 
 static void render_bar(int z, const atc_menu_item_t *it) {
@@ -310,7 +328,9 @@ static void render_bar(int z, const atc_menu_item_t *it) {
     atc_status_t st = ATC_ST_NONE;
     if (it->read) it->read(raw, sizeof raw, &st);
 
-    int pct = clamp_pct(strtol(raw, NULL, 10));
+    long raw_val = 0;
+    atc_parse_long(raw, 10, &raw_val);
+    int pct = clamp_pct(raw_val);
     char bar[VALUE_BUF];
     char unit[8];
     compose_bar(pct, bar, unit, sizeof unit);
@@ -324,8 +344,8 @@ static void format_choice_box(const char *sel, char *out, size_t cap) {
     if (sl > CHOICE_STR_MAX) sl = CHOICE_STR_MAX;
     int lpad = (CHOICE_STR_MAX - sl) / 2;
     int rpad = CHOICE_STR_MAX - sl - lpad;
-    snprintf(out, cap, "%s %*s%.*s%*s %s",
-             SYM_CHOICE_LBR, lpad, "", sl, sel, rpad, "", SYM_CHOICE_RBR);
+    atc_snprintf(out, cap, "%s %*s%.*s%*s %s",
+                 SYM_CHOICE_LBR, lpad, "", sl, sel, rpad, "", SYM_CHOICE_RBR);
 }
 
 static void render_choice(int z, const atc_menu_item_t *it,
@@ -348,7 +368,7 @@ static void render_choice(int z, const atc_menu_item_t *it,
 
 static void render_input_edit(int z, const atc_menu_item_t *it, const char *edit) {
     char k[2] = { it->key ? it->key : ' ', 0 };
-    buf_t b = {0};
+    buf_t b = buf_begin();
     open_row(&b, z);
     col(&b, KEY_W,        false, ANSI_FG_KEY, k);
     gap(&b);

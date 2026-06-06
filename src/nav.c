@@ -5,8 +5,6 @@
 
 #include "nav.h"
 
-#include <stdio.h>
-
 typedef struct {
     const atc_menu_table_t *table;
     const char             *label;
@@ -56,13 +54,13 @@ void nav_pop(void) {
 void nav_show_path(void) {
     char   b[ROW_BUF];
     size_t n = 0;
-    int    w = snprintf(b, sizeof b, "%s", SYM_CRUMB_ROOT);
+    int    w = atc_snprintf(b, sizeof b, "%s", SYM_CRUMB_ROOT);
     if (w > 0) n = (size_t)w < sizeof b ? (size_t)w : sizeof b - 1;
 
     for (size_t i = 0; i <= g_depth && n + 1 < sizeof b; i++) {
         const char *lbl = (i < g_depth) ? g_stack[i].label : g_active_label;
         if (!lbl) continue;
-        w = snprintf(b + n, sizeof b - n, "%s%s", SYM_CRUMB, lbl);
+        w = atc_snprintf(b + n, sizeof b - n, "%s%s", SYM_CRUMB, lbl);
         if (w > 0) n += (size_t)w < sizeof b - n ? (size_t)w : sizeof b - n - 1;
     }
 

@@ -15,7 +15,7 @@ add_library(atc_menu STATIC
     src/menu.c
     src/render.c
     src/nav.c
-    src/builder.c
+    src/fmt.c
 )
 
 target_include_directories(atc_menu
