@@ -7,10 +7,7 @@
 
 #include <string.h>
 
-/* The builder writes through `items`, which the public type qualifies as
- * `const` so static-tables can live in .rodata. Casting away const here
- * is safe because atc_menu_begin() is only ever called with a writable
- * buffer the caller has provided. */
+/* Caller-provided buffer is writable; const on the public type only guards static tables. */
 static atc_menu_item_t *append(atc_menu_table_t *t) {
     if (!t || !t->items || t->count >= t->cap) return NULL;
     atc_menu_item_t *items = (atc_menu_item_t *)t->items;
@@ -124,14 +121,4 @@ void atc_menu_input(atc_menu_table_t *t, char k, const char *label,
     it->input_min    = min;
     it->input_max    = max;
     it->input_commit = commit;
-}
-
-void atc_menu_log_view(atc_menu_table_t *t, char k, const char *label,
-                       atc_log_ring_t *ring) {
-    atc_menu_item_t *it = append(t);
-    if (!it) return;
-    it->type     = ATC_ROW_LOG_VIEW;
-    it->key      = k;
-    it->label    = label;
-    it->log_ring = ring;
 }

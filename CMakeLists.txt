@@ -15,7 +15,6 @@ add_library(atc_menu STATIC
     src/menu.c
     src/render.c
     src/nav.c
-    src/log_ring.c
     src/builder.c
 )
 

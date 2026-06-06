@@ -20,8 +20,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "atc_menu/log_ring.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -68,7 +66,6 @@ typedef enum {
     ATC_ROW_BAR,      /**< Horizontal level bar (0..100 %). */
     ATC_ROW_CHOICE,   /**< N-state cycle (e.g., ECO/NORMAL/TURBO). */
     ATC_ROW_INPUT,    /**< Runtime parameter entry (int/float/hex/string). */
-    ATC_ROW_LOG_VIEW, /**< Opens a fullscreen log scrollback over a ring buffer. */
 } atc_row_type_t;
 
 /**
@@ -141,7 +138,6 @@ typedef struct atc_menu_item {
             int32_t          input_max;    /**< Upper bound (INT/HEX). 0 if unused. */
             atc_input_fn_t   input_commit; /**< Validated-buffer commit callback. */
         };
-        atc_log_ring_t *log_ring;          /**< LOG_VIEW: ring buffer to display. */
     };
 } atc_menu_item_t;
 
@@ -294,8 +290,6 @@ void atc_menu_input   (atc_menu_table_t *t, char key, const char *label,
                        const char *unit, atc_read_fn_t read,
                        atc_input_type_t type, int32_t min, int32_t max,
                        atc_input_fn_t commit);
-void atc_menu_log_view(atc_menu_table_t *t, char key, const char *label,
-                       atc_log_ring_t *ring);
 
 #ifdef __cplusplus
 }

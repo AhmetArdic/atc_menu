@@ -63,9 +63,6 @@
       .read = (read_), .input_type = (type_), .input_min = (min_), \
       .input_max = (max_), .input_commit = (commit_) }
 
-#define ATC_LOG_VIEW(key_, label_, ring_) \
-    { .type = ATC_ROW_LOG_VIEW, .key = (key_), .label = (label_), .log_ring = (ring_) }
-
 /* ----- notes shorthand ---------------------------------------------------- */
 
 #define ATC_NO_NOTES           NULL, 0

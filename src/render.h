@@ -17,8 +17,6 @@ void render_group_span(size_t start);
 void render_default_footer(bool show_back);
 int  render_footer_anchor_line(void);
 
-void render_log_view(const atc_log_ring_t *r, uint16_t offset);
-
 void render_validate_item(const atc_menu_item_t *it);
 void render_validate_notes(const char *const *notes, size_t count);
 

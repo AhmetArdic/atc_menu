@@ -37,9 +37,6 @@
  *   - The home menu uses the runtime builder (atc_menu_begin/...) so it
  *     can be rewired at boot or in response to events without touching
  *     the framework internals.
- *
- * Actions push diagnostic lines into a ring buffer; the row keyed 'E'
- * opens a fullscreen log scrollback over that ring.
  */
 
 #ifdef _WIN32
@@ -88,11 +85,6 @@ static int    g_serial = -1;
 #endif
 static size_t g_tx_bytes;
 
-/* -------------------------------------------------------------- event log */
-
-static char           g_log_storage[16][64];
-static atc_log_ring_t g_event_log;
-
 /* -------------------------------------------------------------- read callbacks */
 
 static bool app_led_on;
@@ -115,16 +107,13 @@ static void rd_led(char *b, size_t n, atc_status_t *st) {
 static void act_toggle_led(void) {
     app_led_on = !app_led_on;
     fprintf(stderr, "  [backend] LED -> %s\n", app_led_on ? "ON" : "OFF");
-    atc_menu_log_printf(&g_event_log, "LED %s", app_led_on ? "ON" : "OFF");
 }
 
 static void act_self_test(void) {
     fprintf(stderr, "  [backend] self test running...\n");
-    atc_menu_log_printf(&g_event_log, "self test running");
     atc_menu_status("self test running...");
     sleep_ms(300);
     atc_menu_status("self test ok");
-    atc_menu_log_printf(&g_event_log, "self test ok");
     fprintf(stderr, "  [backend] self test ok\n");
 }
 
@@ -158,11 +147,9 @@ static const char *app_fan_choices[] = { "AUTO", "LOW", "MED", "HIGH" };
 
 static void commit_pwr_mode(void) {
     fprintf(stderr, "  [backend] Power mode -> %s\n", app_pwr_choices[app_pwr_mode]);
-    atc_menu_log_printf(&g_event_log, "pwr -> %s", app_pwr_choices[app_pwr_mode]);
 }
 static void commit_fan_mode(void) {
     fprintf(stderr, "  [backend] Fan curve -> %s\n",  app_fan_choices[app_fan_mode]);
-    atc_menu_log_printf(&g_event_log, "fan -> %s", app_fan_choices[app_fan_mode]);
 }
 
 static void rd_battery_pct(char *b, size_t n, atc_status_t *st) {
@@ -194,13 +181,11 @@ static void rd_threshold(char *b, size_t n, atc_status_t *st) {
 static bool commit_pwm_duty(const char *s) {
     app_pwm_duty = atol(s);
     fprintf(stderr, "  [backend] PWM duty -> %ld %%\n", (long)app_pwm_duty);
-    atc_menu_log_printf(&g_event_log, "pwm duty %ld%%", (long)app_pwm_duty);
     return true;
 }
 static bool commit_threshold(const char *s) {
     app_threshold_mv = atol(s);
     fprintf(stderr, "  [backend] Threshold -> %ld mV\n", (long)app_threshold_mv);
-    atc_menu_log_printf(&g_event_log, "threshold %ld mV", (long)app_threshold_mv);
     return true;
 }
 
@@ -272,7 +257,6 @@ ATC_MENU(widgets, ATC_NO_NOTES,
 static const char *const home_notes[] = {
     "Press a row's hotkey to interact with it.",
     "Type ':' for command mode (e.g., set temp 30).",
-    "Press 'E' for the event log.",
 };
 
 static atc_menu_item_t  home_items[16];
@@ -299,7 +283,6 @@ static void build_home(void) {
     atc_menu_group   (&home, "Control");
     atc_menu_state   (&home, 'L', "LED",       rd_led, act_toggle_led);
     atc_menu_action  (&home, '1', "Self test", act_self_test);
-    atc_menu_log_view(&home, 'E', "Event log", &g_event_log);
 
     atc_menu_notes   (&home, home_notes, ARR_LEN(home_notes));
     atc_menu_end     (&home);
@@ -313,16 +296,13 @@ static void app_cmd(const char *line) {
     if (strncmp(line, "set temp ", 9) == 0) {
         g_mcu.mcu_temp_c = (float)atof(line + 9);
         fprintf(stderr, "  [backend] MCU temp override -> %.1f C\n", g_mcu.mcu_temp_c);
-        atc_menu_log_printf(&g_event_log, "temp -> %.1f C", g_mcu.mcu_temp_c);
     } else if (strncmp(line, "set vbat ", 9) == 0) {
         g_mcu.vbat_v = (float)atof(line + 9);
         fprintf(stderr, "  [backend] Vbat override -> %.2f V\n", g_mcu.vbat_v);
-        atc_menu_log_printf(&g_event_log, "vbat -> %.2f V", g_mcu.vbat_v);
     } else if (strncmp(line, "set load ", 9) == 0) {
         app_load_target_ma = (float)atof(line + 9);
         g_ina.current_ma   = app_load_target_ma;
         fprintf(stderr, "  [backend] INA219 load -> %.0f mA\n", app_load_target_ma);
-        atc_menu_log_printf(&g_event_log, "load -> %.0f mA", app_load_target_ma);
     } else if (line[0]) {
         atc_menu_status("unknown cmd");
     }
@@ -486,10 +466,6 @@ int main(int argc, char **argv) {
     if (!serial_open(argv[1], baud)) return 1;
 
     sensor_sim_init();
-    atc_menu_log_init(&g_event_log, &g_log_storage[0][0],
-                      (uint16_t)ARR_LEN(g_log_storage),
-                      (uint16_t)sizeof g_log_storage[0]);
-    atc_menu_log_push(&g_event_log, "boot");
 
     build_home();
     atc_menu_init(&home, &serial_port, &demo_info);
