@@ -307,7 +307,6 @@ static void handle_row_key(const atc_menu_item_t *it, size_t index) {
             atc_menu_render();
             return;
         case ATC_ROW_GROUP:
-            if (it->action) it->action();
             render_group_span(index);
             return;
         case ATC_ROW_INPUT:

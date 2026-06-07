@@ -9,12 +9,13 @@
 
 static int led_actions;
 static int run_actions;
+static int temp_reads;
 
 static void rd_led(char *b, size_t n, atc_status_t *st) {
     (void)b; (void)n; *st = ATC_ST_OFF;
 }
 static void rd_temp(char *b, size_t n, atc_status_t *st) {
-    snprintf(b, n, "24.5"); *st = ATC_ST_OK;
+    temp_reads++; snprintf(b, n, "24.5"); *st = ATC_ST_OK;
 }
 static void act_led(void) { led_actions++; }
 static void act_run(void) { run_actions++; }
@@ -63,12 +64,14 @@ int main(void) {
     EXPECT(full_len > partial_len * 2);
 
     /* Group key repaints all rows in the span: bigger than one row,
-     * smaller than the full menu. */
+     * smaller than the full menu, and re-reads both spanned VALUE rows. */
     mock_reset();
+    temp_reads = 0;
     atc_menu_handle_key('g');
     size_t group_len = mock_len();
     EXPECT(group_len > partial_len);
     EXPECT(group_len < full_len);
+    EXPECT(temp_reads == 2);
 
     /* 'r' triggers a render. */
     mock_reset();

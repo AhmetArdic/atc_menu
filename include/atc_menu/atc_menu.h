@@ -48,7 +48,7 @@ typedef enum {
  *
  * | Type            | read     | action   | Visual                          |
  * |-----------------|----------|----------|---------------------------------|
- * | ATC_ROW_GROUP   | unused   | unused   | `   MPU9250 IMU`                |
+ * | ATC_ROW_GROUP   | unused   | unused   | `e  BME280 Env` (key refreshes) |
  * | ATC_ROW_VALUE   | required | optional | `t  Temp   45.3 C   OK`         |
  * | ATC_ROW_STATE   | required | required | `L  LED    ON`                  |
  * | ATC_ROW_ACTION  | unused   | required | `1  Flash CRC`                  |
@@ -86,6 +86,9 @@ typedef enum {
  * @brief Reader callback. Formats the current value into @p buf and reports
  *        the value's health via @p st.
  *
+ * Invoked on every repaint (full render, row refresh, or group-span refresh),
+ * so it must be side-effect-free: sample and format only.
+ *
  * @param[out] buf  Destination buffer for the value string.
  * @param[in]  n    Size of @p buf in bytes (typically 16).
  * @param[out] st   Status to be displayed alongside the value.
@@ -117,7 +120,8 @@ struct atc_menu_table; /* fwd decl */
  */
 typedef struct atc_menu_item {
     atc_row_type_t  type;   /**< Row kind. See ::atc_row_type_t. */
-    char            key;    /**< Hotkey (printable char). 0 for groups. */
+    char            key;    /**< Hotkey (printable char). 0 for a plain group;
+                                 set on a GROUP to make the key refresh its span. */
     const char     *label;  /**< Group title or row label. */
     const char     *unit;   /**< Unit string ("V", "C"). Use "" if none. */
     atc_read_fn_t   read;   /**< Reader; required for VALUE/STATE/BAR/INPUT. */

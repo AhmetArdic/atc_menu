@@ -260,7 +260,7 @@ ATC_MENU(home, ATC_WITH_NOTES(home_notes),
     ATC_VALUE ('t', "MCU Temp", "C", rd_temp),
     ATC_VALUE ('v', "Battery",  "V", rd_vbat),
 
-    ATC_GROUP (   "BME280 Env"),
+    ATC_GROUP_REFRESH ('e', "BME280 Env"),
     ATC_VALUE (0, "Temperature", "C",   rd_bme_t),
     ATC_VALUE (0, "Humidity",    "%",   rd_bme_h),
     ATC_VALUE (0, "Pressure",    "hPa", rd_bme_p),

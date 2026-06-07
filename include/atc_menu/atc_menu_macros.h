@@ -31,6 +31,9 @@
 #define ATC_GROUP(label_) \
     { .type = ATC_ROW_GROUP, .label = (label_) }
 
+#define ATC_GROUP_REFRESH(key_, label_) \
+    { .type = ATC_ROW_GROUP, .key = (key_), .label = (label_) }
+
 #define ATC_VALUE(key_, label_, unit_, read_) \
     { .type = ATC_ROW_VALUE, .key = (key_), .label = (label_), \
       .unit = (unit_), .read = (read_) }
