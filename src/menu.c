@@ -10,7 +10,6 @@
 #include "render.h"
 
 #include <stdarg.h>
-#include <string.h>
 
 /* ================================================================ globals */
 
@@ -82,8 +81,6 @@ static void emit_footer(void) {
     } else {
         render_default_footer(nav_depth() > 0);
     }
-
-    menu_printf("%s", ANSI_CLR_BELOW);
 }
 
 /* ================================================================ public render */
@@ -108,8 +105,9 @@ static void cmd_key(char k) {
     if (k == '\r' || k == '\n') {
         g_cmd.buf[g_cmd.len] = '\0';
         cmd_reset();
-        if (g_port->cmd) g_port->cmd(g_cmd.buf);
+        /* Repaint first so a status printed by the handler survives. */
         atc_menu_render();
+        if (g_port->cmd) g_port->cmd(g_cmd.buf);
         return;
     }
     if (k == KEY_ESC) {
@@ -133,30 +131,12 @@ static void cmd_key(char k) {
 
 /* ================================================================ INPUT mode */
 
-static void input_reset(void) {
-    g_input.active = false;
-    g_input.pos    = 0;
-    g_input.buf[0] = '\0';
-    g_input.index  = 0;
-    g_input.item   = NULL;
-}
+static void input_reset(void) { g_input.active = false; }
 
 static void input_paint(void) {
     char edit[INPUT_EDIT_BUF];
-    size_t pos = 0;
-    int n = atc_snprintf(edit + pos, sizeof edit - pos, "%s", SYM_INPUT_PROMPT);
-    if (n > 0) pos += (size_t)n;
-
-    size_t copy = g_input.pos;
-    if (copy > sizeof edit - pos - sizeof SYM_INPUT_CURSOR - 1)
-        copy = sizeof edit - pos - sizeof SYM_INPUT_CURSOR - 1;
-    memcpy(edit + pos, g_input.buf, copy);
-    pos += copy;
-
-    n = atc_snprintf(edit + pos, sizeof edit - pos, "%s", SYM_INPUT_CURSOR);
-    if (n > 0) pos += (size_t)n;
-    edit[pos] = '\0';
-
+    atc_snprintf(edit, sizeof edit, "%s%s%s",
+                 SYM_INPUT_PROMPT, g_input.buf, SYM_INPUT_CURSOR);
     render_row_input(g_input.index, edit);
 }
 
@@ -175,7 +155,6 @@ static bool input_acceptable(atc_input_type_t t, char k) {
 
 static bool input_validate(void) {
     if (g_input.pos == 0) { atc_menu_status("invalid: empty"); return false; }
-    g_input.buf[g_input.pos] = '\0';
 
     atc_input_type_t t = g_input.item->input_type;
     if (t == ATC_INPUT_STR) return true;
@@ -245,12 +224,7 @@ static void input_key(char k) {
 
 /* ================================================================ CHOICE mode */
 
-static void choice_reset(void) {
-    g_choice.active  = false;
-    g_choice.pending = 0;
-    g_choice.index   = 0;
-    g_choice.item    = NULL;
-}
+static void choice_reset(void) { g_choice.active = false; }
 
 static void choice_paint(void) {
     const char *label = g_choice.item->choices[g_choice.pending]
@@ -347,12 +321,14 @@ void atc_menu_init(const atc_menu_table_t *table,
 
     if (!table || !table->items || !port) return;
 
-    render_validate_notes(table->notes, table->note_count);
-
     const atc_menu_item_t *items = table->items;
     size_t                 count = table->count;
     for (size_t i = 0; i < count; i++) {
         const atc_menu_item_t *a = &items[i];
+
+        if (a->type == ATC_ROW_NOTE && i + 1 < count
+            && items[i + 1].type != ATC_ROW_NOTE)
+            menu_printf("WARN: NOTE rows must be last\r\n");
 
         if (a->key) {
             const char *role = reserved_role(a->key);

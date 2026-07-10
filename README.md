@@ -71,19 +71,19 @@ static void rd_temp(char *b, size_t n, atc_status_t *st) {
     snprintf(b, n, "%d", read_temp_c()); *st = ATC_ST_OK;
 }
 
-ATC_MENU(home, ATC_NO_NOTES,
+ATC_MENU(home,
     ATC_GROUP ("Sensors"),
     ATC_VALUE ('t', "Temp", "C", rd_temp),
     ATC_STATE ('L', "LED",       rd_led, act_toggle_led),
     ATC_ACTION('1', "Self test", act_self_test),
+    ATC_NOTE  ("Press hotkeys to interact."),
 );
 
 atc_menu_init(&home, &my_port, &info);
 ```
 
 Genişletilmiş etiket karşılığı:
-- `ATC_GROUP/VALUE/STATE/ACTION/SUBMENU/BAR/CHOICE/INPUT`
-- `ATC_WITH_NOTES(arr)` veya `ATC_NO_NOTES` — `ATC_MENU`'nün notes argümanı
+- `ATC_GROUP/VALUE/STATE/ACTION/SUBMENU/BAR/CHOICE/INPUT/NOTE`
 
 Submenu'ler `&other_menu` ile bağlanır; alt tablo, ona referans veren satırdan
 **önce** tanımlanmalıdır (C derleme sırası).
@@ -100,6 +100,7 @@ Submenu'ler `&other_menu` ile bağlanır; alt tablo, ona referans veren satırda
 | `ATC_ROW_BAR`      | `B  Battery ▕████▎  ▏ 78 % OK`      | 8 hücreli yatay seviye (1/8 sub-cell)       |
 | `ATC_ROW_CHOICE`   | `m  Mode    ❮ NORMAL ❯      OK`     | N-state cycle; opsiyonel commit callback    |
 | `ATC_ROW_INPUT`    | `d  PWM Duty       50 %     OK`     | Inline editor; INT/HEX/STR                  |
+| `ATC_ROW_NOTE`     | dim tam-genişlik metin              | Ekran sonunda; ilki üstüne noktalı ayraç    |
 
 **SUBMENU**: `submenu` pointer'ı zorunlu, derinlik `NAV_DEPTH` ile sınırlı.
 **BAR**: `read` yüzdeyi string olarak yazar (`"78"`); renk `atc_status_t`'ten.
@@ -114,17 +115,15 @@ fail editör'ü açık tutar, hata status'a basılır.
 
 ### Per-screen notlar
 
-`atc_menu_table_t.notes` ile dim renkli statik satırlar footer üstüne
-basılır — sayfanın "ne yapar" özeti için:
+`ATC_NOTE` satırlarıyla dim renkli statik metin, kutunun altına noktalı
+ayraçla ayrılıp basılır — sayfanın "ne yapar" özeti için. NOTE satırları
+tablonun sonunda olmalıdır (aksi halde init uyarı basar):
 
 ```c
-static const char *const power_notes[] = {
-    "INA219 high-side current monitor, 0.1 ohm shunt.",
-    "':set load <mA>' to push WARN/ERR thresholds.",
-};
-
-ATC_MENU(power, ATC_WITH_NOTES(power_notes),
-    /* ... */
+ATC_MENU(power,
+    /* ... rows ... */
+    ATC_NOTE("INA219 high-side current monitor, 0.1 ohm shunt."),
+    ATC_NOTE("':set load <mA>' to push WARN/ERR thresholds."),
 );
 ```
 

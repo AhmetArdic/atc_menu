@@ -18,6 +18,5 @@ void render_default_footer(bool show_back);
 int  render_footer_anchor_line(void);
 
 void render_validate_item(const atc_menu_item_t *it);
-void render_validate_notes(const char *const *notes, size_t count);
 
 #endif

@@ -61,12 +61,8 @@ static int utf8_cols(const char *s) {
     return cols;
 }
 
-static const char *zebra_bg(int idx) {
-    return (idx & 1) ? ANSI_BG_ZEBRA : "";
-}
-
 static void open_row(buf_t *b, int zebra) {
-    b->bg = zebra_bg(zebra);
+    b->bg = (zebra & 1) ? ANSI_BG_ZEBRA : "";
     buf_printf(b, ANSI_DIM SYM_BOX_V ANSI_RESET "%s", b->bg);
 }
 
@@ -98,15 +94,19 @@ static void col(buf_t *b, int width, bool right_align,
 
 /* ================================================================ status glyph */
 
-static void status_glyph(atc_status_t st, const char **color, const char **text) {
-    switch (st) {
-        case ATC_ST_OK:   *color = ANSI_FG_OK;   *text = SYM_ST_OK;   return;
-        case ATC_ST_WARN: *color = ANSI_FG_WARN; *text = SYM_ST_WARN; return;
-        case ATC_ST_ERR:  *color = ANSI_FG_ERR;  *text = SYM_ST_ERR;  return;
-        case ATC_ST_ON:   *color = ANSI_FG_OK;   *text = SYM_ST_ON;   return;
-        case ATC_ST_OFF:  *color = ANSI_DIM;     *text = SYM_ST_OFF;  return;
-        default:          *color = "";           *text = "";          return;
-    }
+typedef struct { const char *color, *text; } glyph_t;
+
+static const glyph_t *status_glyph(atc_status_t st) {
+    static const glyph_t map[] = {
+        [ATC_ST_NONE] = { "",           ""          },
+        [ATC_ST_OK]   = { ANSI_FG_OK,   SYM_ST_OK   },
+        [ATC_ST_WARN] = { ANSI_FG_WARN, SYM_ST_WARN },
+        [ATC_ST_ERR]  = { ANSI_FG_ERR,  SYM_ST_ERR  },
+        [ATC_ST_ON]   = { ANSI_FG_OK,   SYM_ST_ON   },
+        [ATC_ST_OFF]  = { ANSI_DIM,     SYM_ST_OFF  },
+    };
+    size_t i = (size_t)st;
+    return &map[i < sizeof map / sizeof map[0] ? i : ATC_ST_NONE];
 }
 
 /* ================================================================ chrome */
@@ -177,26 +177,28 @@ static void render_header(void) {
     box_edge(SYM_BOX_LJ, SYM_BOX_RJ);
 }
 
-static int notes_lines(size_t count) { return count == 0 ? 0 : 1 + (int)count; }
-
-static void render_note_row(const char *note) {
+/* Notes render without zebra striping; the first one gets a dotted
+ * separator above it (see render_all). */
+static void render_note(const atc_menu_item_t *it) {
     buf_t b = buf_begin();
     open_row(&b, 0);
-    col(&b, NOTE_W, false, ANSI_DIM, note);
+    col(&b, NOTE_W, false, ANSI_DIM, it->label);
     close_row(&b);
     buf_flush(&b);
 }
 
-static void render_notes(const char *const *notes, size_t count) {
-    if (!notes || count == 0) return;
-
+static void note_separator(void) {
     buf_t b = buf_begin();
     buf_printf(&b, ANSI_DIM SYM_BOX_V);
     for (int i = 0; i < INNER_W; i++) buf_printf(&b, "%s", SYM_BOX_DOT);
     buf_printf(&b, SYM_BOX_V ANSI_RESET ANSI_EOL "\r\n");
     buf_flush(&b);
+}
 
-    for (size_t i = 0; i < count; i++) render_note_row(notes[i]);
+/* NOTE rows are required to be last, so checking the tail is enough. */
+static bool has_notes(void) {
+    size_t count = nav_count();
+    return count > 0 && nav_items()[count - 1].type == ATC_ROW_NOTE;
 }
 
 void render_default_footer(bool show_back) {
@@ -210,19 +212,11 @@ void render_default_footer(bool show_back) {
             ANSI_RESET ANSI_EOL "\r\n");
 }
 
-void render_validate_notes(const char *const *notes, size_t count) {
-    if (!notes || count == 0) return;
-    for (size_t i = 0; i < count; i++) {
-        if (notes[i] && (int)strlen(notes[i]) > NOTE_W)
-            menu_printf("WARN: note exceeds %d cols: '%s'\r\n", NOTE_W, notes[i]);
-    }
-}
-
-/* Line (1-based) of the box's bottom border. Header + rows + notes block,
- * then the closing border one line below. Every cursor anchor derives from
- * this so the footer/park math has a single source of truth. */
+/* Line (1-based) of the box's bottom border. Header + rows + note
+ * separator, then the closing border one line below. Every cursor anchor
+ * derives from this so the footer/park math has a single source of truth. */
 static int box_bottom_line(void) {
-    return HEADER_LINES + 1 + (int)nav_count() + notes_lines(nav_note_count());
+    return HEADER_LINES + 1 + (int)nav_count() + (has_notes() ? 1 : 0);
 }
 
 int render_footer_anchor_line(void) {
@@ -238,8 +232,7 @@ void menu_park_cursor(void) {
 static void scalar_row(int z, const atc_menu_item_t *it,
                        const char *val_style, const char *val,
                        const char *unit, atc_status_t st) {
-    const char *sd_color, *sd_text;
-    status_glyph(st, &sd_color, &sd_text);
+    const glyph_t *g = status_glyph(st);
     char k[2] = { it->key ? it->key : ' ', 0 };
 
     buf_t b = buf_begin();
@@ -248,7 +241,7 @@ static void scalar_row(int z, const atc_menu_item_t *it,
     col(&b, LABEL_W,  false, NULL,        it->label);                  gap(&b);
     col(&b, VALUE_W,  true,  val_style ? val_style : ANSI_FG_VAL, val); gap(&b);
     col(&b, UNIT_W,   false, ANSI_DIM,    unit ? unit : it->unit);     gap(&b);
-    col(&b, STATUS_W, false, sd_color,    sd_text);
+    col(&b, STATUS_W, false, g->color,    g->text);
     close_row(&b);
     buf_flush(&b);
 }
@@ -391,6 +384,7 @@ static void render_item(int z, const atc_menu_item_t *it) {
         case ATC_ROW_INPUT:    render_value(z, it);    return;
         case ATC_ROW_BAR:      render_bar(z, it);      return;
         case ATC_ROW_CHOICE:   render_choice(z, it, NULL, false); return;
+        case ATC_ROW_NOTE:     render_note(it);        return;
     }
 }
 
@@ -409,11 +403,14 @@ void render_all(void) {
 
     const atc_menu_item_t *items = nav_items();
     size_t                 count = nav_count();
-    for (size_t i = 0; i < count; i++) render_item((int)i, &items[i]);
+    for (size_t i = 0; i < count; i++) {
+        if (items[i].type == ATC_ROW_NOTE
+            && (i == 0 || items[i - 1].type != ATC_ROW_NOTE))
+            note_separator();
+        render_item((int)i, &items[i]);
+    }
 
-    render_notes(nav_notes(), nav_note_count());
     box_edge(SYM_BOX_BL, SYM_BOX_BR);
-    menu_printf("%s", ANSI_CLR_BELOW);
 }
 
 void render_row(size_t index) {
@@ -438,7 +435,8 @@ void render_group_span(size_t start) {
     const atc_menu_item_t *items = nav_items();
     size_t                 count = nav_count();
     size_t                 end   = start + 1;
-    while (end < count && items[end].type != ATC_ROW_GROUP) end++;
+    while (end < count && items[end].type != ATC_ROW_GROUP
+                       && items[end].type != ATC_ROW_NOTE) end++;
 
     park_at_row(start);
     for (size_t i = start; i < end; i++) render_item((int)i, &items[i]);
@@ -468,8 +466,10 @@ void render_validate_item(const atc_menu_item_t *it) {
             if (it->label && strlen(it->label) > SUBMENU_LABEL_W)
                 menu_printf("WARN: SUBMENU label '%s' exceeds %d cols\r\n",
                             it->label, SUBMENU_LABEL_W);
-            if (it->submenu)
-                render_validate_notes(it->submenu->notes, it->submenu->note_count);
+            if (it->submenu && it->submenu->items)
+                for (size_t i = 0; i < it->submenu->count; i++)
+                    if (it->submenu->items[i].type == ATC_ROW_NOTE)
+                        render_validate_item(&it->submenu->items[i]);
             return;
         case ATC_ROW_VALUE:
             if (!it->read) menu_printf("WARN: ATC_ROW_VALUE '%c' missing read\r\n", k);
@@ -502,5 +502,9 @@ void render_validate_item(const atc_menu_item_t *it) {
                 && it->input_min > it->input_max)
                 menu_printf("WARN: ATC_ROW_INPUT '%c' min > max\r\n", k);
             warn_label_unit(it); return;
+        case ATC_ROW_NOTE:
+            if (it->label && (int)strlen(it->label) > NOTE_W)
+                menu_printf("WARN: note exceeds %d cols: '%s'\r\n", NOTE_W, it->label);
+            return;
     }
 }

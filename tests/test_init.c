@@ -120,31 +120,24 @@ int main(void) {
     EXPECT_CONTAINS(mock_buffer(), "unit");
 
     /* Notes that exceed the inner width must warn (root table). */
-    static const atc_menu_item_t notes_root_items[] = {
+    static const atc_menu_item_t long_note_items[] = {
         { .type = ATC_ROW_GROUP, .label = "G" },
-    };
-    static const char *const long_root_notes[] = {
-        "ThisRootNoteIsDeliberatelyMuchLongerThanTheInnerBoxWidthSoItOverflowsAndShouldWarn",
-    };
-    static const atc_menu_table_t notes_root_tbl = {
-        .items = notes_root_items, .count = 1,
-        .notes = long_root_notes, .note_count = 1,
+        { .type = ATC_ROW_NOTE,
+          .label = "ThisRootNoteIsDeliberatelyMuchLongerThanTheInnerBoxWidthSoItOverflowsAndShouldWarn" },
     };
     mock_reset();
-    atc_menu_init(&notes_root_tbl, &mock_port, NULL);
+    ATC_INIT_ITEMS(long_note_items, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "WARN");
     EXPECT_CONTAINS(mock_buffer(), "note exceeds");
 
     /* Long notes on a child SUBMENU table also warn at init. */
-    static const char *const long_child_notes[] = {
-        "ThisChildNoteIsDeliberatelyMuchLongerThanTheInnerBoxWidthSoItOverflowsAndShouldWarn",
-    };
     static const atc_menu_item_t child_items[] = {
         { .type = ATC_ROW_GROUP, .label = "C" },
+        { .type = ATC_ROW_NOTE,
+          .label = "ThisChildNoteIsDeliberatelyMuchLongerThanTheInnerBoxWidthSoItOverflowsAndShouldWarn" },
     };
     static const atc_menu_table_t child_tbl = {
-        .items = child_items, .count = 1,
-        .notes = long_child_notes, .note_count = 1,
+        .items = child_items, .count = sizeof child_items / sizeof child_items[0],
     };
     static const atc_menu_item_t parent_items[] = {
         { .type = ATC_ROW_SUBMENU, .key = 's', .label = "S",
@@ -155,14 +148,22 @@ int main(void) {
     EXPECT_CONTAINS(mock_buffer(), "note exceeds");
 
     /* Notes that fit produce no note warnings. */
-    static const char *const ok_notes[] = { "Short note." };
-    static const atc_menu_table_t ok_tbl = {
-        .items = notes_root_items, .count = 1,
-        .notes = ok_notes, .note_count = 1,
+    static const atc_menu_item_t ok_note_items[] = {
+        { .type = ATC_ROW_GROUP, .label = "G" },
+        { .type = ATC_ROW_NOTE,  .label = "Short note." },
     };
     mock_reset();
-    atc_menu_init(&ok_tbl, &mock_port, NULL);
+    ATC_INIT_ITEMS(ok_note_items, &mock_port);
     EXPECT_NOT_CONTAINS(mock_buffer(), "note exceeds");
+
+    /* A NOTE followed by a non-NOTE row must warn. */
+    static const atc_menu_item_t misplaced_note[] = {
+        { .type = ATC_ROW_NOTE,  .label = "Too early." },
+        { .type = ATC_ROW_GROUP, .label = "G" },
+    };
+    mock_reset();
+    ATC_INIT_ITEMS(misplaced_note, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "NOTE rows must be last");
 
     TEST_RESULT();
 }

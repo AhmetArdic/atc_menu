@@ -20,7 +20,6 @@
 #ifndef ATC_MENU_H
 #define ATC_MENU_H
 
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -56,21 +55,26 @@ typedef enum {
  * | ATC_ROW_BAR     | required | unused   | `b  Battery ▕████▎  ▏ 78 % OK`  |
  * | ATC_ROW_CHOICE  | optional | unused   | `p  Mode    ❮ NORMAL ❯      OK` |
  * | ATC_ROW_INPUT   | required | unused   | `d  PWM Duty       50 %     OK` |
+ * | ATC_ROW_NOTE    | unused   | unused   | dim full-width text             |
  *
  * SUBMENU additionally requires `submenu`. CHOICE requires `choices`
  * and `choice_idx`. INPUT requires `input_commit`. See the per-field
  * comments on ::atc_menu_item for usage details and the optional hooks
  * (`choice_commit` for browse-then-commit, etc.).
+ *
+ * NOTE rows must be the last rows of their table; a dotted separator is
+ * drawn above the first one.
  */
 typedef enum {
-    ATC_ROW_GROUP,    /**< Section header. Optional key bulk-refreshes the span. */
-    ATC_ROW_VALUE,    /**< Read-only scalar (sensor, voltage). */
-    ATC_ROW_STATE,    /**< Two-state output (GPIO, fan). Toggled by action. */
-    ATC_ROW_ACTION,   /**< Command bound to a hotkey (test, reset). */
-    ATC_ROW_SUBMENU,  /**< Drills into another items table. */
-    ATC_ROW_BAR,      /**< Horizontal level bar (0..100 %). */
-    ATC_ROW_CHOICE,   /**< N-state cycle (e.g., ECO/NORMAL/TURBO). */
-    ATC_ROW_INPUT,    /**< Runtime parameter entry (int/hex/string). */
+    ATC_ROW_GROUP,
+    ATC_ROW_VALUE,
+    ATC_ROW_STATE,
+    ATC_ROW_ACTION,
+    ATC_ROW_SUBMENU,
+    ATC_ROW_BAR,
+    ATC_ROW_CHOICE,
+    ATC_ROW_INPUT,
+    ATC_ROW_NOTE,
 } atc_row_type_t;
 
 /**
@@ -109,7 +113,7 @@ typedef void (*atc_action_fn_t)(void);
  */
 typedef bool (*atc_input_fn_t)(const char *s);
 
-struct atc_menu_table; /* fwd decl */
+struct atc_menu_table;
 
 /**
  * @brief A single menu row. Tables of these drive the entire UI.
@@ -150,20 +154,14 @@ typedef struct atc_menu_item {
 } atc_menu_item_t;
 
 /**
- * @brief A menu screen: row table plus optional static notes.
- *
- * One table per screen. Notes (if any) are rendered as dim text inside
- * the box, between the last row and the bottom border, separated by a
- * dotted line.
+ * @brief A menu screen: one row table.
  *
  * Define as `static const`; the struct and its referenced arrays must
  * outlive the menu.
  */
 typedef struct atc_menu_table {
-    const atc_menu_item_t *items;      /**< Row table. */
-    size_t                 count;      /**< Number of rows in @ref items. */
-    const char *const     *notes;      /**< Optional. Array of note strings. */
-    size_t                 note_count; /**< 0 to omit the notes block. */
+    const atc_menu_item_t *items; /**< Row table. */
+    size_t                 count; /**< Number of rows in @ref items. */
 } atc_menu_table_t;
 
 /**

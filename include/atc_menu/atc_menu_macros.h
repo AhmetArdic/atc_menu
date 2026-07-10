@@ -10,14 +10,11 @@
  * The macros expand to plain designated initializers so the entire menu
  * lives in .rodata with zero runtime cost.
  *
- *     static const char *const home_notes[] = {
- *         "Press hotkeys to interact.",
- *     };
- *
- *     ATC_MENU(home, ATC_WITH_NOTES(home_notes),
+ *     ATC_MENU(home,
  *         ATC_GROUP ("Quick view"),
  *         ATC_VALUE ('t', "MCU Temp", "C", rd_temp),
  *         ATC_ACTION('1', "Self-test", act_self_test),
+ *         ATC_NOTE  ("Press hotkeys to interact."),
  *     );
  */
 
@@ -63,25 +60,16 @@
       .read = (read_), .input_type = (type_), .input_min = (min_), \
       .input_max = (max_), .input_commit = (commit_) }
 
-/* ----- notes shorthand ---------------------------------------------------- */
-
-#define ATC_NO_NOTES           NULL, 0
-#define ATC_WITH_NOTES(arr_)   (arr_), (sizeof(arr_) / sizeof((arr_)[0]))
+#define ATC_NOTE(text_) \
+    { .type = ATC_ROW_NOTE, .label = (text_) }
 
 /* ----- top-level menu declaration ----------------------------------------- */
 
-/* The double-indirection on _ATC_NOTES_FROM lets a single token like
- * ATC_WITH_NOTES(home_notes) supply both struct fields after one extra
- * rescan splits it on its inner comma. */
-#define _ATC_NOTES_FROM(...)       _ATC_NOTES_FROM_(__VA_ARGS__)
-#define _ATC_NOTES_FROM_(p_, n_)   .notes = (p_), .note_count = (n_)
-
-#define ATC_MENU(name_, notes_args_, ...)                                       \
+#define ATC_MENU(name_, ...)                                                    \
     static const atc_menu_item_t name_##_items[] = { __VA_ARGS__ };             \
     static const atc_menu_table_t name_ = {                                     \
         .items = name_##_items,                                                 \
         .count = sizeof(name_##_items) / sizeof((name_##_items)[0]),            \
-        _ATC_NOTES_FROM(notes_args_)                                            \
     }
 
 #endif /* ATC_MENU_MACROS_H */

@@ -21,11 +21,9 @@ void nav_reset(const atc_menu_table_t *root) {
     g_depth        = 0;
 }
 
-const atc_menu_item_t *nav_items(void)      { return g_table ? g_table->items : NULL; }
-size_t                 nav_count(void)      { return g_table ? g_table->count : 0; }
-size_t                 nav_depth(void)      { return g_depth; }
-const char *const     *nav_notes(void)      { return g_table ? g_table->notes : NULL; }
-size_t                 nav_note_count(void) { return g_table ? g_table->note_count : 0; }
+const atc_menu_item_t *nav_items(void) { return g_table ? g_table->items : NULL; }
+size_t                 nav_count(void) { return g_table ? g_table->count : 0; }
+size_t                 nav_depth(void) { return g_depth; }
 
 void nav_push(const atc_menu_item_t *opener) {
     const atc_menu_table_t *t = opener->submenu;

@@ -54,14 +54,13 @@ static const atc_menu_item_t items[] = {
     { .type = ATC_ROW_GROUP,   .label = "Drill into" },
     { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "Inner page",
       .submenu = &leaf_tbl },
-};
-static const char *const items_notes[] = {
-    "Kitchen-sink demo: every row widget on one screen.",
-    "Press hotkeys to interact; 'b' pops back from sub-pages.",
+    { .type = ATC_ROW_NOTE,
+      .label = "Kitchen-sink demo: every row widget on one screen." },
+    { .type = ATC_ROW_NOTE,
+      .label = "Press hotkeys to interact; 'b' pops back from sub-pages." },
 };
 static const atc_menu_table_t items_tbl = {
     .items = items, .count = sizeof items / sizeof items[0],
-    .notes = items_notes, .note_count = sizeof items_notes / sizeof items_notes[0],
 };
 
 static size_t visible_len(const char *s) {

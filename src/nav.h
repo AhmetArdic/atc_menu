@@ -14,9 +14,6 @@ const atc_menu_item_t *nav_items(void);
 size_t                 nav_count(void);
 size_t                 nav_depth(void);
 
-const char *const *nav_notes(void);
-size_t             nav_note_count(void);
-
 void nav_push(const atc_menu_item_t *opener);
 void nav_pop(void);
 void nav_show_path(void);

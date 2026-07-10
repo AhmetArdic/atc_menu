@@ -187,59 +187,55 @@ static bool commit_threshold(const char *s) {
 
 /* -------------------------------------------------------------- leaf menus (Flash) */
 
-ATC_MENU(imu_accel, ATC_NO_NOTES,
+ATC_MENU(imu_accel,
     ATC_GROUP(    "MPU9250 Accelerometer"),
     ATC_VALUE(0, "Accel X", "g", rd_mpu_ax),
     ATC_VALUE(0, "Accel Y", "g", rd_mpu_ay),
     ATC_VALUE(0, "Accel Z", "g", rd_mpu_az),
 );
 
-ATC_MENU(imu_gyro, ATC_NO_NOTES,
+ATC_MENU(imu_gyro,
     ATC_GROUP(    "MPU9250 Gyroscope"),
     ATC_VALUE(0, "Gyro X", "dps", rd_mpu_gx),
     ATC_VALUE(0, "Gyro Y", "dps", rd_mpu_gy),
     ATC_VALUE(0, "Gyro Z", "dps", rd_mpu_gz),
 );
 
-ATC_MENU(imu_mag, ATC_NO_NOTES,
+ATC_MENU(imu_mag,
     ATC_GROUP(    "MPU9250 Magnetometer"),
     ATC_VALUE(0, "Mag X", "uT", rd_mpu_mx),
     ATC_VALUE(0, "Mag Y", "uT", rd_mpu_my),
     ATC_VALUE(0, "Mag Z", "uT", rd_mpu_mz),
 );
 
-static const char *const imu_notes[] = {
-    "9-DoF IMU, I2C @ 0x68, sample rate 100 Hz.",
-    "Drill into a sub-axis page for individual readouts.",
-};
-
-ATC_MENU(imu, ATC_WITH_NOTES(imu_notes),
+ATC_MENU(imu,
     ATC_GROUP  (     "MPU9250 IMU 9-DoF"),
     ATC_SUBMENU('a', "Accelerometer", &imu_accel),
     ATC_SUBMENU('g', "Gyroscope",     &imu_gyro),
     ATC_SUBMENU('m', "Magnetometer",  &imu_mag),
+    ATC_NOTE   ("9-DoF IMU, I2C @ 0x68, sample rate 100 Hz."),
+    ATC_NOTE   ("Drill into a sub-axis page for individual readouts."),
 );
 
-static const char *const power_notes[] = {
-    "INA219 high-side current monitor, 0.1 ohm shunt.",
-    "':set load <mA>' to push WARN/ERR thresholds.",
-};
-
-ATC_MENU(power, ATC_WITH_NOTES(power_notes),
+ATC_MENU(power,
     ATC_GROUP(    "INA219 Power"),
     ATC_VALUE(0, "Bus V",   "V",  rd_ina_v),
     ATC_VALUE(0, "Current", "mA", rd_ina_i),
     ATC_VALUE(0, "Power",   "mW", rd_ina_p),
+    ATC_NOTE ("INA219 high-side current monitor, 0.1 ohm shunt."),
+    ATC_NOTE ("':set load <mA>' to push WARN/ERR thresholds."),
 );
 
-ATC_MENU(widgets, ATC_NO_NOTES,
+ATC_MENU(widgets,
     ATC_GROUP (     "Levels (BAR)"),
     ATC_BAR   ('B', "Battery",          rd_battery_pct),
     ATC_BAR   ('c', "CPU Load",         rd_cpu_load),
 
     ATC_GROUP (     "Modes (CHOICE)"),
-    ATC_CHOICE('m', "Power Mode", app_pwr_choices, 3, &app_pwr_mode, commit_pwr_mode),
-    ATC_CHOICE('f', "Fan Curve",  app_fan_choices, 4, &app_fan_mode, commit_fan_mode),
+    ATC_CHOICE('m', "Power Mode", app_pwr_choices, ARR_LEN(app_pwr_choices),
+               &app_pwr_mode, commit_pwr_mode),
+    ATC_CHOICE('f', "Fan Curve",  app_fan_choices, ARR_LEN(app_fan_choices),
+               &app_fan_mode, commit_fan_mode),
 
     ATC_GROUP (     "Setpoints (INPUT)"),
     ATC_INPUT ('d', "PWM Duty",  "%",  rd_pwm_duty,
@@ -250,12 +246,7 @@ ATC_MENU(widgets, ATC_NO_NOTES,
 
 /* -------------------------------------------------------------- home menu */
 
-static const char *const home_notes[] = {
-    "Press a row's hotkey to interact with it.",
-    "Type ':' for command mode (e.g., set temp 30).",
-};
-
-ATC_MENU(home, ATC_WITH_NOTES(home_notes),
+ATC_MENU(home,
     ATC_GROUP (     "Quick view"),
     ATC_VALUE ('t', "MCU Temp", "C", rd_temp),
     ATC_VALUE ('v', "Battery",  "V", rd_vbat),
@@ -274,6 +265,9 @@ ATC_MENU(home, ATC_WITH_NOTES(home_notes),
     ATC_GROUP (     "Control"),
     ATC_STATE ('L', "LED",       rd_led, act_toggle_led),
     ATC_ACTION('1', "Self test", act_self_test),
+
+    ATC_NOTE  ("Press a row's hotkey to interact with it."),
+    ATC_NOTE  ("Type ':' for command mode (e.g., set temp 30)."),
 );
 
 /* -------------------------------------------------------------- command parser */

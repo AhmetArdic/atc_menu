@@ -70,7 +70,7 @@ int atc_vsnprintf(char *out, size_t cap, const char *fmt, va_list ap) {
         if (*fmt == '%') { emit(&s, '%'); continue; }
 
         bool left = false;
-        while (*fmt == '-') { left = true; fmt++; }
+        if (*fmt == '-') { left = true; fmt++; }
 
         int width;
         if (*fmt == '*') { width = va_arg(ap, int); fmt++; }
@@ -85,7 +85,7 @@ int atc_vsnprintf(char *out, size_t cap, const char *fmt, va_list ap) {
         }
 
         bool is_long = false;
-        while (*fmt == 'l') { is_long = true; fmt++; }
+        if (*fmt == 'l') { is_long = true; fmt++; }
 
         char numbuf[24];
         switch (*fmt) {

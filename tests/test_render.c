@@ -136,30 +136,22 @@ int main(void) {
     static const atc_menu_item_t leaf_with_notes_items[] = {
         { .type = ATC_ROW_GROUP, .label = "Leaf" },
         { .type = ATC_ROW_VALUE, .label = "Y", .unit = "V", .read = rd_temp },
-    };
-    static const char *const leaf_notes[] = {
-        "FIRST_NOTE_LINE",
-        "SECOND_NOTE_LINE",
+        { .type = ATC_ROW_NOTE,  .label = "FIRST_NOTE_LINE" },
+        { .type = ATC_ROW_NOTE,  .label = "SECOND_NOTE_LINE" },
     };
     static const atc_menu_table_t leaf_with_notes = {
         .items = leaf_with_notes_items,
         .count = sizeof leaf_with_notes_items / sizeof leaf_with_notes_items[0],
-        .notes = leaf_notes,
-        .note_count = sizeof leaf_notes / sizeof leaf_notes[0],
     };
     static const atc_menu_item_t notes_root_items[] = {
         { .type = ATC_ROW_GROUP,   .label = "Top" },
         { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "Inner",
           .submenu = &leaf_with_notes },
-    };
-    static const char *const root_notes[] = {
-        "ROOT_NOTE_LINE",
+        { .type = ATC_ROW_NOTE,    .label = "ROOT_NOTE_LINE" },
     };
     static const atc_menu_table_t notes_root = {
         .items = notes_root_items,
         .count = sizeof notes_root_items / sizeof notes_root_items[0],
-        .notes = root_notes,
-        .note_count = 1,
     };
 
     mock_reset();
