@@ -4,7 +4,7 @@
  */
 
 /**
- * @file atc_menu_macros.h
+ * @file menu_macros.h
  * @brief Compile-time syntactic sugar for declaring Flash-resident menus.
  *
  * The macros expand to plain designated initializers so the entire menu
@@ -21,7 +21,7 @@
 #ifndef ATC_MENU_MACROS_H
 #define ATC_MENU_MACROS_H
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 
 /* ----- row item literals -------------------------------------------------- */
 

@@ -15,7 +15,7 @@
 #ifndef DEMO_SENSOR_HELPERS_H
 #define DEMO_SENSOR_HELPERS_H
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 #include <stdio.h>
 
 /**

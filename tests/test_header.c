@@ -11,7 +11,7 @@
  * box alignment without a test failure.
  */
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 #include "mock_port.h"
 #include "testing.h"
 

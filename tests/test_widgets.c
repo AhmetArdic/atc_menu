@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 #include "mock_port.h"
 #include "testing.h"
 

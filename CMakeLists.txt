@@ -12,7 +12,7 @@ option(ATC_MENU_BUILD_EXAMPLES "Build example app" OFF)
 # Core library
 # ---------------------------------------------------------------------------
 add_library(atc_menu STATIC
-    src/atc_menu.c
+    src/menu.c
 )
 
 target_include_directories(atc_menu

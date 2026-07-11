@@ -1,7 +1,7 @@
 /* One-off visual inspection — dumps rendered output to stdout so a human
  * can eyeball the layout. Not a CTest target. */
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 #include "mock_port.h"
 
 #include <stdint.h>

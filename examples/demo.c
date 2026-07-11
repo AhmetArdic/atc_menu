@@ -53,7 +53,7 @@
 #  include <unistd.h>
 #endif
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 #include "sensor_helpers.h"
 #include "sensor_sim.h"
 

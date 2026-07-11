@@ -4,7 +4,7 @@
  */
 
 /**
- * @file atc_menu.h
+ * @file menu.h
  * @brief UART debug menu framework — public API.
  *
  * Table-driven, allocation-free, transport-agnostic. The framework owns
@@ -253,7 +253,7 @@ void atc_menu_status(const char *msg);
  * opt out, e.g. to avoid name clashes.
  */
 #ifndef ATC_MENU_NO_MACROS
-#include "atc_menu/atc_menu_macros.h"
+#include "atc_menu/menu_macros.h"
 #endif
 
 #endif /* ATC_MENU_H */

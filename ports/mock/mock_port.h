@@ -14,7 +14,7 @@
 #ifndef MOCK_PORT_H
 #define MOCK_PORT_H
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 
 #ifdef __cplusplus
 extern "C" {

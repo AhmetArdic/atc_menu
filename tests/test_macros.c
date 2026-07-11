@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#include "atc_menu/atc_menu_macros.h"
+#include "atc_menu/menu_macros.h"
 #include "testing.h"
 
 #include <stddef.h>

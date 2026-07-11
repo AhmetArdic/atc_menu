@@ -4,10 +4,10 @@
  *
  * Whole framework in one translation unit: libc-free formatting, the
  * navigation stack, the renderer, and key handling. The public API and
- * data model live in atc_menu.h; layout tunables in layout.h.
+ * data model live in menu.h; layout tunables in layout.h.
  */
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 #include "layout.h"
 
 #include <limits.h>

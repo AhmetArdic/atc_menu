@@ -15,7 +15,7 @@
 #ifndef TESTING_H
 #define TESTING_H
 
-#include "atc_menu/atc_menu.h"
+#include "atc_menu/menu.h"
 
 #include <stdio.h>
 #include <string.h>
