@@ -50,7 +50,7 @@ static size_t visible_line_len(const char *src, int line_idx) {
 }
 
 static const atc_menu_item_t one_row[] = {
-    { .type = ATC_ROW_GROUP, .label = "G" },
+    { .type = ATC_MENU_ROW_GROUP, .label = "G" },
 };
 
 static void render_with_info(const atc_menu_info_t *info) {

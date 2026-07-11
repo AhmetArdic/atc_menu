@@ -11,20 +11,20 @@ static int led_actions;
 static int run_actions;
 static int temp_reads;
 
-static void rd_led(char *b, size_t n, atc_status_t *st) {
-    (void)b; (void)n; *st = ATC_ST_OFF;
+static void rd_led(char *b, size_t n, atc_menu_status_t *st) {
+    (void)b; (void)n; *st = ATC_MENU_ST_OFF;
 }
-static void rd_temp(char *b, size_t n, atc_status_t *st) {
-    temp_reads++; snprintf(b, n, "24.5"); *st = ATC_ST_OK;
+static void rd_temp(char *b, size_t n, atc_menu_status_t *st) {
+    temp_reads++; snprintf(b, n, "24.5"); *st = ATC_MENU_ST_OK;
 }
 static void act_led(void) { led_actions++; }
 static void act_run(void) { run_actions++; }
 
 /* Renders the last submitted cmd line, so a repaint that runs after the
  * cmd handler is visible in the TX capture. */
-static void rd_cmd_echo(char *b, size_t n, atc_status_t *st) {
+static void rd_cmd_echo(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "[%s]", mock_last_cmd());
-    *st = ATC_ST_OK;
+    *st = ATC_MENU_ST_OK;
 }
 
 int main(void) {
@@ -32,15 +32,15 @@ int main(void) {
     run_actions = 0;
 
     static const atc_menu_item_t items[] = {
-        { .type = ATC_ROW_STATE,  .key = 'L', .label = "LED", .unit = "",
+        { .type = ATC_MENU_ROW_STATE,  .key = 'L', .label = "LED", .unit = "",
           .read = rd_led, .action = act_led },
-        { .type = ATC_ROW_ACTION, .key = '1', .label = "Run", .unit = "",
+        { .type = ATC_MENU_ROW_ACTION, .key = '1', .label = "Run", .unit = "",
           .action = act_run },
-        { .type = ATC_ROW_VALUE,  .key = 't', .label = "Temp", .unit = "C",
+        { .type = ATC_MENU_ROW_VALUE,  .key = 't', .label = "Temp", .unit = "C",
           .read = rd_temp },
-        { .type = ATC_ROW_GROUP,  .key = 'g', .label = "Group", .unit = "" },
-        { .type = ATC_ROW_VALUE,  .label = "T1", .unit = "C", .read = rd_temp },
-        { .type = ATC_ROW_VALUE,  .label = "T2", .unit = "C", .read = rd_temp },
+        { .type = ATC_MENU_ROW_GROUP,  .key = 'g', .label = "Group", .unit = "" },
+        { .type = ATC_MENU_ROW_VALUE,  .label = "T1", .unit = "C", .read = rd_temp },
+        { .type = ATC_MENU_ROW_VALUE,  .label = "T2", .unit = "C", .read = rd_temp },
     };
 
     mock_reset();
@@ -110,7 +110,7 @@ int main(void) {
     /* Rows are refreshed after the cmd handler runs, so state the
      * command changed shows up without a manual 'r'. */
     static const atc_menu_item_t cmd_rows[] = {
-        { .type = ATC_ROW_VALUE, .key = 'v', .label = "Last cmd", .unit = "",
+        { .type = ATC_MENU_ROW_VALUE, .key = 'v', .label = "Last cmd", .unit = "",
           .read = rd_cmd_echo },
     };
     ATC_INIT_ITEMS(cmd_rows, &mock_port);
@@ -125,25 +125,25 @@ int main(void) {
     /* ---------------- Sub-menu navigation ----------------- */
 
     static const atc_menu_item_t leaf[] = {
-        { .type = ATC_ROW_GROUP, .label = "Leaf" },
-        { .type = ATC_ROW_VALUE, .label = "X", .unit = "C", .read = rd_temp },
+        { .type = ATC_MENU_ROW_GROUP, .label = "Leaf" },
+        { .type = ATC_MENU_ROW_VALUE, .label = "X", .unit = "C", .read = rd_temp },
     };
     static const atc_menu_table_t leaf_tbl = {
         .items = leaf, .count = sizeof leaf / sizeof leaf[0],
     };
     static const atc_menu_item_t mid[] = {
-        { .type = ATC_ROW_GROUP,   .label = "Mid" },
-        { .type = ATC_ROW_SUBMENU, .key = 'd', .label = "Deeper",
+        { .type = ATC_MENU_ROW_GROUP,   .label = "Mid" },
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'd', .label = "Deeper",
           .submenu = &leaf_tbl },
     };
     static const atc_menu_table_t mid_tbl = {
         .items = mid, .count = sizeof mid / sizeof mid[0],
     };
     static const atc_menu_item_t root[] = {
-        { .type = ATC_ROW_GROUP,   .label = "Root" },
-        { .type = ATC_ROW_SUBMENU, .key = 'm', .label = "Mid menu",
+        { .type = ATC_MENU_ROW_GROUP,   .label = "Root" },
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'm', .label = "Mid menu",
           .submenu = &mid_tbl },
-        { .type = ATC_ROW_ACTION,  .key = '1', .label = "Run",
+        { .type = ATC_MENU_ROW_ACTION,  .key = '1', .label = "Run",
           .action = act_run },
     };
 
@@ -194,27 +194,27 @@ int main(void) {
 
     /* Stack overflow: 5 levels with depth 4 must refuse the 5th. */
     static const atc_menu_item_t lvl5[] = {
-        { .type = ATC_ROW_GROUP, .label = "L5" },
+        { .type = ATC_MENU_ROW_GROUP, .label = "L5" },
     };
     static const atc_menu_table_t lvl5_tbl = { lvl5, 1 };
     static const atc_menu_item_t lvl4[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L5", .submenu = &lvl5_tbl },
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'n', .label = "L5", .submenu = &lvl5_tbl },
     };
     static const atc_menu_table_t lvl4_tbl = { lvl4, 1 };
     static const atc_menu_item_t lvl3[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L4", .submenu = &lvl4_tbl },
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'n', .label = "L4", .submenu = &lvl4_tbl },
     };
     static const atc_menu_table_t lvl3_tbl = { lvl3, 1 };
     static const atc_menu_item_t lvl2[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L3", .submenu = &lvl3_tbl },
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'n', .label = "L3", .submenu = &lvl3_tbl },
     };
     static const atc_menu_table_t lvl2_tbl = { lvl2, 1 };
     static const atc_menu_item_t lvl1[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L2", .submenu = &lvl2_tbl },
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'n', .label = "L2", .submenu = &lvl2_tbl },
     };
     static const atc_menu_table_t lvl1_tbl = { lvl1, 1 };
     static const atc_menu_item_t lvl0[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L1", .submenu = &lvl1_tbl },
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'n', .label = "L1", .submenu = &lvl1_tbl },
     };
     ATC_INIT_ITEMS(lvl0, &mock_port);
     atc_menu_handle_key('n');   /* depth 1 */

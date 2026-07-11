@@ -26,42 +26,42 @@
 /* ----- row item literals -------------------------------------------------- */
 
 #define ATC_GROUP(label_) \
-    { .type = ATC_ROW_GROUP, .label = (label_) }
+    { .type = ATC_MENU_ROW_GROUP, .label = (label_) }
 
 #define ATC_GROUP_REFRESH(key_, label_) \
-    { .type = ATC_ROW_GROUP, .key = (key_), .label = (label_) }
+    { .type = ATC_MENU_ROW_GROUP, .key = (key_), .label = (label_) }
 
 #define ATC_VALUE(key_, label_, unit_, read_) \
-    { .type = ATC_ROW_VALUE, .key = (key_), .label = (label_), \
+    { .type = ATC_MENU_ROW_VALUE, .key = (key_), .label = (label_), \
       .unit = (unit_), .read = (read_) }
 
 #define ATC_STATE(key_, label_, read_, action_) \
-    { .type = ATC_ROW_STATE, .key = (key_), .label = (label_), \
+    { .type = ATC_MENU_ROW_STATE, .key = (key_), .label = (label_), \
       .read = (read_), .action = (action_) }
 
 #define ATC_ACTION(key_, label_, action_) \
-    { .type = ATC_ROW_ACTION, .key = (key_), .label = (label_), \
+    { .type = ATC_MENU_ROW_ACTION, .key = (key_), .label = (label_), \
       .action = (action_) }
 
 #define ATC_SUBMENU(key_, label_, sub_) \
-    { .type = ATC_ROW_SUBMENU, .key = (key_), .label = (label_), \
+    { .type = ATC_MENU_ROW_SUBMENU, .key = (key_), .label = (label_), \
       .submenu = (sub_) }
 
 #define ATC_BAR(key_, label_, read_) \
-    { .type = ATC_ROW_BAR, .key = (key_), .label = (label_), .read = (read_) }
+    { .type = ATC_MENU_ROW_BAR, .key = (key_), .label = (label_), .read = (read_) }
 
 #define ATC_CHOICE(key_, label_, choices_, count_, idx_ptr_, commit_) \
-    { .type = ATC_ROW_CHOICE, .key = (key_), .label = (label_), \
+    { .type = ATC_MENU_ROW_CHOICE, .key = (key_), .label = (label_), \
       .choices = (choices_), .choice_count = (count_), \
       .choice_idx = (idx_ptr_), .choice_commit = (commit_) }
 
 #define ATC_INPUT(key_, label_, unit_, read_, type_, min_, max_, commit_) \
-    { .type = ATC_ROW_INPUT, .key = (key_), .label = (label_), .unit = (unit_), \
+    { .type = ATC_MENU_ROW_INPUT, .key = (key_), .label = (label_), .unit = (unit_), \
       .read = (read_), .input_type = (type_), .input_min = (min_), \
       .input_max = (max_), .input_commit = (commit_) }
 
 #define ATC_NOTE(text_) \
-    { .type = ATC_ROW_NOTE, .label = (text_) }
+    { .type = ATC_MENU_ROW_NOTE, .label = (text_) }
 
 /* ----- top-level menu declaration ----------------------------------------- */
 

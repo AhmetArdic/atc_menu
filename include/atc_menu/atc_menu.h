@@ -34,28 +34,28 @@ extern "C" {
  * Drives the color of the status field rendered at the end of each row.
  */
 typedef enum {
-    ATC_ST_NONE = 0, /**< Neutral, no color applied. */
-    ATC_ST_OK,       /**< Nominal value (green). */
-    ATC_ST_WARN,     /**< Warning threshold reached (yellow). */
-    ATC_ST_ERR,      /**< Error / out of range (red). */
-    ATC_ST_ON,       /**< Output asserted / pin high. */
-    ATC_ST_OFF,      /**< Output deasserted / pin low. */
-} atc_status_t;
+    ATC_MENU_ST_NONE = 0, /**< Neutral, no color applied. */
+    ATC_MENU_ST_OK,       /**< Nominal value (green). */
+    ATC_MENU_ST_WARN,     /**< Warning threshold reached (yellow). */
+    ATC_MENU_ST_ERR,      /**< Error / out of range (red). */
+    ATC_MENU_ST_ON,       /**< Output asserted / pin high. */
+    ATC_MENU_ST_OFF,      /**< Output deasserted / pin low. */
+} atc_menu_status_t;
 
 /**
  * @brief Row type. Drives rendering and which fields are required.
  *
- * | Type            | read     | action   | Visual                          |
- * |-----------------|----------|----------|---------------------------------|
- * | ATC_ROW_GROUP   | unused   | unused   | `e  BME280 Env` (key refreshes) |
- * | ATC_ROW_VALUE   | required | optional | `t  Temp   45.3 C   OK`         |
- * | ATC_ROW_STATE   | required | required | `L  LED    ON`                  |
- * | ATC_ROW_ACTION  | unused   | required | `1  Flash CRC`                  |
- * | ATC_ROW_SUBMENU | unused   | unused   | `i  ❯ MPU9250 IMU`              |
- * | ATC_ROW_BAR     | required | unused   | `b  Battery ▕████▎  ▏ 78 % OK`  |
- * | ATC_ROW_CHOICE  | optional | unused   | `p  Mode    ❮ NORMAL ❯      OK` |
- * | ATC_ROW_INPUT   | required | unused   | `d  PWM Duty       50 %     OK` |
- * | ATC_ROW_NOTE    | unused   | unused   | dim full-width text             |
+ * | Type                 | read     | action   | Visual                          |
+ * |----------------------|----------|----------|---------------------------------|
+ * | ATC_MENU_ROW_GROUP   | unused   | unused   | `e  BME280 Env` (key refreshes) |
+ * | ATC_MENU_ROW_VALUE   | required | optional | `t  Temp   45.3 C   OK`         |
+ * | ATC_MENU_ROW_STATE   | required | required | `L  LED    ON`                  |
+ * | ATC_MENU_ROW_ACTION  | unused   | required | `1  Flash CRC`                  |
+ * | ATC_MENU_ROW_SUBMENU | unused   | unused   | `i  ❯ MPU9250 IMU`              |
+ * | ATC_MENU_ROW_BAR     | required | unused   | `b  Battery ▕████▎  ▏ 78 % OK`  |
+ * | ATC_MENU_ROW_CHOICE  | optional | unused   | `p  Mode    ❮ NORMAL ❯      OK` |
+ * | ATC_MENU_ROW_INPUT   | required | unused   | `d  PWM Duty       50 %     OK` |
+ * | ATC_MENU_ROW_NOTE    | unused   | unused   | dim full-width text             |
  *
  * SUBMENU additionally requires `submenu`. CHOICE requires `choices`
  * and `choice_idx`. INPUT requires `input_commit`. See the per-field
@@ -66,25 +66,25 @@ typedef enum {
  * drawn above the first one.
  */
 typedef enum {
-    ATC_ROW_GROUP,
-    ATC_ROW_VALUE,
-    ATC_ROW_STATE,
-    ATC_ROW_ACTION,
-    ATC_ROW_SUBMENU,
-    ATC_ROW_BAR,
-    ATC_ROW_CHOICE,
-    ATC_ROW_INPUT,
-    ATC_ROW_NOTE,
-} atc_row_type_t;
+    ATC_MENU_ROW_GROUP,
+    ATC_MENU_ROW_VALUE,
+    ATC_MENU_ROW_STATE,
+    ATC_MENU_ROW_ACTION,
+    ATC_MENU_ROW_SUBMENU,
+    ATC_MENU_ROW_BAR,
+    ATC_MENU_ROW_CHOICE,
+    ATC_MENU_ROW_INPUT,
+    ATC_MENU_ROW_NOTE,
+} atc_menu_row_type_t;
 
 /**
  * @brief Data type accepted by an INPUT row's editor.
  */
 typedef enum {
-    ATC_INPUT_INT,   /**< Signed decimal integer; bounded by input_min/input_max. */
-    ATC_INPUT_HEX,   /**< Hex digits, optional 0x prefix; bounded by input_min/input_max. */
-    ATC_INPUT_STR,   /**< Printable ASCII string; bounded by buffer length. */
-} atc_input_type_t;
+    ATC_MENU_INPUT_INT,   /**< Signed decimal integer; bounded by input_min/input_max. */
+    ATC_MENU_INPUT_HEX,   /**< Hex digits, optional 0x prefix; bounded by input_min/input_max. */
+    ATC_MENU_INPUT_STR,   /**< Printable ASCII string; bounded by buffer length. */
+} atc_menu_input_type_t;
 
 /**
  * @brief Reader callback. Formats the current value into @p buf and reports
@@ -97,12 +97,12 @@ typedef enum {
  * @param[in]  n    Size of @p buf in bytes (typically 16).
  * @param[out] st   Status to be displayed alongside the value.
  */
-typedef void (*atc_read_fn_t)(char *buf, size_t n, atc_status_t *st);
+typedef void (*atc_menu_read_fn_t)(char *buf, size_t n, atc_menu_status_t *st);
 
 /**
  * @brief Action callback. Invoked when the user presses the row's hotkey.
  */
-typedef void (*atc_action_fn_t)(void);
+typedef void (*atc_menu_action_fn_t)(void);
 
 /**
  * @brief Commit callback for INPUT rows. Invoked when the user submits an
@@ -111,7 +111,7 @@ typedef void (*atc_action_fn_t)(void);
  * @param[in] s  Null-terminated string the user entered (e.g., "50", "0x1F").
  * @return true to accept and exit input mode; false to keep the editor open.
  */
-typedef bool (*atc_input_fn_t)(const char *s);
+typedef bool (*atc_menu_input_fn_t)(const char *s);
 
 struct atc_menu_table;
 
@@ -123,13 +123,13 @@ struct atc_menu_table;
  * atc_menu_init().
  */
 typedef struct atc_menu_item {
-    atc_row_type_t  type;   /**< Row kind. See ::atc_row_type_t. */
-    char            key;    /**< Hotkey (printable char). 0 for a plain group;
-                                 set on a GROUP to make the key refresh its span. */
-    const char     *label;  /**< Group title or row label. */
-    const char     *unit;   /**< Unit string ("V", "C"). Use "" if none. */
-    atc_read_fn_t   read;   /**< Reader; required for VALUE/STATE/BAR/INPUT. */
-    atc_action_fn_t action; /**< Action; required for STATE/ACTION. */
+    atc_menu_row_type_t  type;   /**< Row kind. See ::atc_menu_row_type_t. */
+    char                 key;    /**< Hotkey (printable char). 0 for a plain group;
+                                      set on a GROUP to make the key refresh its span. */
+    const char          *label;  /**< Group title or row label. */
+    const char          *unit;   /**< Unit string ("V", "C"). Use "" if none. */
+    atc_menu_read_fn_t   read;   /**< Reader; required for VALUE/STATE/BAR/INPUT. */
+    atc_menu_action_fn_t action; /**< Action; required for STATE/ACTION. */
     const struct atc_menu_table *submenu; /**< Sub-menu table. Required for SUBMENU. */
 
     /* Per-widget extras. Anonymous union: CHOICE and INPUT rows have
@@ -137,18 +137,18 @@ typedef struct atc_menu_item {
      * = 3, .input_min = 0) addresses them directly. */
     union {
         struct {
-            const char    **choices;       /**< Array of choice strings (each <= 6 chars). */
-            uint8_t         choice_count;  /**< Number of entries in @ref choices. */
-            uint8_t        *choice_idx;    /**< Pointer to current selection (mutable, app-owned). */
-            atc_action_fn_t choice_commit; /**< Optional. NULL: key cycles+writes immediately.
-                                                Non-NULL: key opens edit mode; Enter commits
-                                                and fires this callback, Esc reverts. */
+            const char           **choices;       /**< Array of choice strings (each <= 6 chars). */
+            uint_least8_t          choice_count;  /**< Number of entries in @ref choices. */
+            uint_least8_t         *choice_idx;    /**< Pointer to current selection (mutable, app-owned). */
+            atc_menu_action_fn_t   choice_commit; /**< Optional. NULL: key cycles+writes immediately.
+                                                       Non-NULL: key opens edit mode; Enter commits
+                                                       and fires this callback, Esc reverts. */
         };
         struct {
-            atc_input_type_t input_type;   /**< Editor data type. */
-            int32_t          input_min;    /**< Lower bound (INT/HEX). 0 if unused. */
-            int32_t          input_max;    /**< Upper bound (INT/HEX). 0 if unused. */
-            atc_input_fn_t   input_commit; /**< Validated-buffer commit callback. */
+            atc_menu_input_type_t  input_type;    /**< Editor data type. */
+            int32_t                input_min;     /**< Lower bound (INT/HEX). 0 if unused. */
+            int32_t                input_max;     /**< Upper bound (INT/HEX). 0 if unused. */
+            atc_menu_input_fn_t    input_commit;  /**< Validated-buffer commit callback. */
         };
     };
 } atc_menu_item_t;
@@ -230,7 +230,7 @@ void atc_menu_render(void);
  *
  * Built-in keys: `r` refresh, `b` back, `?` path, `:` command mode.
  * Any other key is matched against the active table; per-row behavior
- * is documented on ::atc_row_type_t.
+ * is documented on ::atc_menu_row_type_t.
  *
  * @param[in] k  Received character.
  */

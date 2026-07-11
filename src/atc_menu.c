@@ -365,17 +365,17 @@ static void key_col(buf_t *b, const atc_menu_item_t *it) {
 
 typedef struct { const char *color, *text; } glyph_t;
 
-static const glyph_t *status_glyph(atc_status_t st) {
+static const glyph_t *status_glyph(atc_menu_status_t st) {
     static const glyph_t map[] = {
-        [ATC_ST_NONE] = { "",           ""          },
-        [ATC_ST_OK]   = { ANSI_FG_OK,   SYM_ST_OK   },
-        [ATC_ST_WARN] = { ANSI_FG_WARN, SYM_ST_WARN },
-        [ATC_ST_ERR]  = { ANSI_FG_ERR,  SYM_ST_ERR  },
-        [ATC_ST_ON]   = { ANSI_FG_OK,   SYM_ST_ON   },
-        [ATC_ST_OFF]  = { ANSI_DIM,     SYM_ST_OFF  },
+        [ATC_MENU_ST_NONE] = { "",           ""          },
+        [ATC_MENU_ST_OK]   = { ANSI_FG_OK,   SYM_ST_OK   },
+        [ATC_MENU_ST_WARN] = { ANSI_FG_WARN, SYM_ST_WARN },
+        [ATC_MENU_ST_ERR]  = { ANSI_FG_ERR,  SYM_ST_ERR  },
+        [ATC_MENU_ST_ON]   = { ANSI_FG_OK,   SYM_ST_ON   },
+        [ATC_MENU_ST_OFF]  = { ANSI_DIM,     SYM_ST_OFF  },
     };
     size_t i = (size_t)st;
-    return &map[i < sizeof map / sizeof map[0] ? i : ATC_ST_NONE];
+    return &map[i < sizeof map / sizeof map[0] ? i : ATC_MENU_ST_NONE];
 }
 
 /* ================================================================ chrome */
@@ -461,7 +461,7 @@ static void render_default_footer(bool show_back) {
  * from this. NOTE rows must be last, so checking the tail is enough. */
 static int box_bottom_line(void) {
     size_t count = nav_count();
-    bool   notes = count > 0 && nav_items()[count - 1].type == ATC_ROW_NOTE;
+    bool   notes = count > 0 && nav_items()[count - 1].type == ATC_MENU_ROW_NOTE;
     return HEADER_LINES + 1 + (int)count + (notes ? 1 : 0);
 }
 
@@ -476,7 +476,7 @@ static void park_at_row(size_t index) {
 
 static void scalar_row(int z, const atc_menu_item_t *it,
                        const char *val_style, const char *val,
-                       const char *unit, atc_status_t st) {
+                       const char *unit, atc_menu_status_t st) {
     const glyph_t *g = status_glyph(st);
 
     buf_t b = row_open(z);
@@ -490,7 +490,7 @@ static void scalar_row(int z, const atc_menu_item_t *it,
 
 static void render_value(int z, const atc_menu_item_t *it) {
     char val[READ_BUF] = {0};
-    atc_status_t st = ATC_ST_NONE;
+    atc_menu_status_t st = ATC_MENU_ST_NONE;
     if (it->read) it->read(val, sizeof val, &st);
     scalar_row(z, it, NULL, val, NULL, st);
 }
@@ -541,7 +541,7 @@ static char *append(char *dst, const char *src) {
 
 static void render_bar(int z, const atc_menu_item_t *it) {
     char raw[READ_BUF] = {0};
-    atc_status_t st = ATC_ST_NONE;
+    atc_menu_status_t st = ATC_MENU_ST_NONE;
     if (it->read) it->read(raw, sizeof raw, &st);
 
     long v = 0;
@@ -562,8 +562,8 @@ static void render_bar(int z, const atc_menu_item_t *it) {
     char unit[8];
     atc_snprintf(unit, sizeof unit, "%d %%", pct);
 
-    const char *color = (st == ATC_ST_WARN) ? ANSI_FG_WARN
-                      : (st == ATC_ST_ERR)  ? ANSI_FG_ERR
+    const char *color = (st == ATC_MENU_ST_WARN) ? ANSI_FG_WARN
+                      : (st == ATC_MENU_ST_ERR)  ? ANSI_FG_ERR
                                             : ANSI_FG_OK;
     scalar_row(z, it, color, bar, unit, st);
 }
@@ -571,7 +571,7 @@ static void render_bar(int z, const atc_menu_item_t *it) {
 static void render_choice(int z, const atc_menu_item_t *it,
                           const char *override, bool editing) {
     char raw[READ_BUF] = {0};
-    atc_status_t st = ATC_ST_OK;
+    atc_menu_status_t st = ATC_MENU_ST_OK;
     if (it->read) it->read(raw, sizeof raw, &st);
 
     const char *sel = override ? override
@@ -594,15 +594,15 @@ static void render_choice(int z, const atc_menu_item_t *it,
 
 static void render_item(int z, const atc_menu_item_t *it) {
     switch (it->type) {
-        case ATC_ROW_GROUP:    render_group(z, it);    return;
-        case ATC_ROW_SUBMENU:  render_submenu(z, it);  return;
-        case ATC_ROW_VALUE:
-        case ATC_ROW_STATE:
-        case ATC_ROW_ACTION:
-        case ATC_ROW_INPUT:    render_value(z, it);    return;
-        case ATC_ROW_BAR:      render_bar(z, it);      return;
-        case ATC_ROW_CHOICE:   render_choice(z, it, NULL, false); return;
-        case ATC_ROW_NOTE:     render_note(it);        return;
+        case ATC_MENU_ROW_GROUP:    render_group(z, it);    return;
+        case ATC_MENU_ROW_SUBMENU:  render_submenu(z, it);  return;
+        case ATC_MENU_ROW_VALUE:
+        case ATC_MENU_ROW_STATE:
+        case ATC_MENU_ROW_ACTION:
+        case ATC_MENU_ROW_INPUT:    render_value(z, it);    return;
+        case ATC_MENU_ROW_BAR:      render_bar(z, it);      return;
+        case ATC_MENU_ROW_CHOICE:   render_choice(z, it, NULL, false); return;
+        case ATC_MENU_ROW_NOTE:     render_note(it);        return;
     }
 }
 
@@ -617,8 +617,8 @@ static void render_rows(void) {
     const atc_menu_item_t *items = nav_items();
     size_t                 count = nav_count();
     for (size_t i = 0; i < count; i++) {
-        if (items[i].type == ATC_ROW_NOTE
-            && (i == 0 || items[i - 1].type != ATC_ROW_NOTE))
+        if (items[i].type == ATC_MENU_ROW_NOTE
+            && (i == 0 || items[i - 1].type != ATC_MENU_ROW_NOTE))
             fill_line(SYM_BOX_V, SYM_BOX_DOT, SYM_BOX_V);
         render_item((int)i, &items[i]);
     }
@@ -628,8 +628,8 @@ static void render_group_span(size_t start) {
     const atc_menu_item_t *items = nav_items();
     size_t                 count = nav_count();
     size_t                 end   = start + 1;
-    while (end < count && items[end].type != ATC_ROW_GROUP
-                       && items[end].type != ATC_ROW_NOTE) end++;
+    while (end < count && items[end].type != ATC_MENU_ROW_GROUP
+                       && items[end].type != ATC_MENU_ROW_NOTE) end++;
 
     park_at_row(start);
     for (size_t i = start; i < end; i++) render_item((int)i, &items[i]);
@@ -643,43 +643,43 @@ static const struct {
     const char *name, *missing;
     bool        need_read, need_action, need_commit;
 } g_req[] = {
-    [ATC_ROW_VALUE]  = { "VALUE",  "read",              true,  false, false },
-    [ATC_ROW_STATE]  = { "STATE",  "read/action",       true,  true,  false },
-    [ATC_ROW_ACTION] = { "ACTION", "action",            false, true,  false },
-    [ATC_ROW_BAR]    = { "BAR",    "read",              true,  false, false },
-    [ATC_ROW_INPUT]  = { "INPUT",  "read/input_commit", true,  false, true  },
+    [ATC_MENU_ROW_VALUE]  = { "VALUE",  "read",              true,  false, false },
+    [ATC_MENU_ROW_STATE]  = { "STATE",  "read/action",       true,  true,  false },
+    [ATC_MENU_ROW_ACTION] = { "ACTION", "action",            false, true,  false },
+    [ATC_MENU_ROW_BAR]    = { "BAR",    "read",              true,  false, false },
+    [ATC_MENU_ROW_INPUT]  = { "INPUT",  "read/input_commit", true,  false, true  },
 };
 
 static void validate_item(const atc_menu_item_t *it) {
     char k = it->key;
     switch (it->type) {
-        case ATC_ROW_GROUP:
+        case ATC_MENU_ROW_GROUP:
             if (it->label && strlen(it->label) > GROUP_LABEL_W)
                 menu_printf("WARN: GROUP label '%s' exceeds %d cols\r\n",
                             it->label, GROUP_LABEL_W);
             return;
-        case ATC_ROW_SUBMENU:
+        case ATC_MENU_ROW_SUBMENU:
             if (!it->submenu || !it->submenu->items || it->submenu->count == 0)
-                menu_printf("WARN: ATC_ROW_SUBMENU '%c' missing submenu\r\n", k);
+                menu_printf("WARN: ATC_MENU_ROW_SUBMENU '%c' missing submenu\r\n", k);
             if (it->label && strlen(it->label) > SUBMENU_LABEL_W)
                 menu_printf("WARN: SUBMENU label '%s' exceeds %d cols\r\n",
                             it->label, SUBMENU_LABEL_W);
             if (it->submenu && it->submenu->items)
                 for (size_t i = 0; i < it->submenu->count; i++)
-                    if (it->submenu->items[i].type == ATC_ROW_NOTE)
+                    if (it->submenu->items[i].type == ATC_MENU_ROW_NOTE)
                         validate_item(&it->submenu->items[i]);
             return;
-        case ATC_ROW_CHOICE:
+        case ATC_MENU_ROW_CHOICE:
             if (!it->choices || it->choice_count == 0 || !it->choice_idx) {
-                menu_printf("WARN: ATC_ROW_CHOICE '%c' missing choices/idx\r\n", k);
+                menu_printf("WARN: ATC_MENU_ROW_CHOICE '%c' missing choices/idx\r\n", k);
                 return;
             }
-            for (uint8_t c = 0; c < it->choice_count; c++)
+            for (uint_least8_t c = 0; c < it->choice_count; c++)
                 if (it->choices[c] && strlen(it->choices[c]) > CHOICE_STR_MAX)
                     menu_printf("WARN: CHOICE '%c' choice '%s' exceeds %d cols\r\n",
                                 k, it->choices[c], CHOICE_STR_MAX);
             return;
-        case ATC_ROW_NOTE:
+        case ATC_MENU_ROW_NOTE:
             if (it->label && (int)strlen(it->label) > NOTE_W)
                 menu_printf("WARN: note exceeds %d cols: '%s'\r\n", NOTE_W, it->label);
             return;
@@ -690,15 +690,15 @@ static void validate_item(const atc_menu_item_t *it) {
     if ((g_req[it->type].need_read   && !it->read)
      || (g_req[it->type].need_action && !it->action)
      || (g_req[it->type].need_commit && !it->input_commit))
-        menu_printf("WARN: ATC_ROW_%s '%c' missing %s\r\n",
+        menu_printf("WARN: ATC_MENU_ROW_%s '%c' missing %s\r\n",
                     g_req[it->type].name, k, g_req[it->type].missing);
 
-    if (it->type == ATC_ROW_INPUT
-        && (it->input_type == ATC_INPUT_INT || it->input_type == ATC_INPUT_HEX)
+    if (it->type == ATC_MENU_ROW_INPUT
+        && (it->input_type == ATC_MENU_INPUT_INT || it->input_type == ATC_MENU_INPUT_HEX)
         && it->input_min > it->input_max)
-        menu_printf("WARN: ATC_ROW_INPUT '%c' min > max\r\n", k);
+        menu_printf("WARN: ATC_MENU_ROW_INPUT '%c' min > max\r\n", k);
 
-    if (it->type != ATC_ROW_BAR) {
+    if (it->type != ATC_MENU_ROW_BAR) {
         if (it->label && strlen(it->label) > LABEL_W)
             menu_printf("WARN: label '%s' exceeds %d cols\r\n", it->label, LABEL_W);
         if (it->unit && strlen(it->unit) > UNIT_W)
@@ -717,8 +717,8 @@ static struct {
     const atc_menu_item_t *item;         /* INPUT/CHOICE row being edited */
     size_t                 index;        /* its row index */
     char                   buf[EDIT_BUF]; /* CMD/INPUT edit text */
-    uint8_t                len;
-    uint8_t                pending;      /* CHOICE candidate index */
+    uint_least8_t          len;
+    uint_least8_t          pending;      /* CHOICE candidate index */
 } g_m;
 
 static void mode_exit(void) { g_m.mode = MODE_NAV; }
@@ -742,7 +742,7 @@ static void emit_footer(void) {
             menu_printf("%s", "\r\n" SYM_PROMPT);
             return;
         case MODE_INPUT:
-            if (it->input_type == ATC_INPUT_INT || it->input_type == ATC_INPUT_HEX)
+            if (it->input_type == ATC_MENU_INPUT_INT || it->input_type == ATC_MENU_INPUT_HEX)
                 menu_printf("\r\n" ANSI_DIM
                     "[Enter] commit  [Esc] cancel  [BS] erase    range: %ld..%ld"
                     ANSI_RESET ANSI_EOL "\r\n",
@@ -811,14 +811,14 @@ static void input_paint(void) {
     park_cursor();
 }
 
-static bool input_acceptable(atc_input_type_t t, char k) {
+static bool input_acceptable(atc_menu_input_type_t t, char k) {
     switch (t) {
-        case ATC_INPUT_INT:
+        case ATC_MENU_INPUT_INT:
             return (k >= '0' && k <= '9') || k == '-';
-        case ATC_INPUT_HEX:
+        case ATC_MENU_INPUT_HEX:
             return (k >= '0' && k <= '9') || (k >= 'a' && k <= 'f')
                 || (k >= 'A' && k <= 'F') || k == 'x' || k == 'X';
-        case ATC_INPUT_STR:
+        case ATC_MENU_INPUT_STR:
             return k >= 32 && k <= 126;
     }
     return false;
@@ -827,11 +827,11 @@ static bool input_acceptable(atc_input_type_t t, char k) {
 static bool input_validate(void) {
     if (g_m.len == 0) { atc_menu_status("invalid: empty"); return false; }
 
-    atc_input_type_t t = g_m.item->input_type;
-    if (t == ATC_INPUT_STR) return true;
+    atc_menu_input_type_t t = g_m.item->input_type;
+    if (t == ATC_MENU_INPUT_STR) return true;
 
     long v;
-    if (!atc_parse_long(g_m.buf, t == ATC_INPUT_HEX ? 16 : 10, &v)) {
+    if (!atc_parse_long(g_m.buf, t == ATC_MENU_INPUT_HEX ? 16 : 10, &v)) {
         atc_menu_status("invalid: parse error");
         return false;
     }
@@ -900,7 +900,7 @@ static void choice_press(const atc_menu_item_t *it, size_t index) {
         choice_paint();
         emit_footer();
     } else {
-        *it->choice_idx = (uint8_t)((*it->choice_idx + 1) % it->choice_count);
+        *it->choice_idx = (uint_least8_t)((*it->choice_idx + 1) % it->choice_count);
         render_row(index);
     }
 }
@@ -908,7 +908,7 @@ static void choice_press(const atc_menu_item_t *it, size_t index) {
 static void choice_key(char k) {
     if (k == '\r' || k == '\n') {
         *g_m.item->choice_idx = g_m.pending;
-        atc_action_fn_t cb = g_m.item->choice_commit;
+        atc_menu_action_fn_t cb = g_m.item->choice_commit;
         mode_exit(); /* leave choice mode before the callback runs */
         if (cb) cb();
         render_row(g_m.index);
@@ -917,7 +917,7 @@ static void choice_key(char k) {
     }
     if (k == KEY_ESC) { mode_end(); return; }
     if (k == g_m.item->key) {
-        g_m.pending = (uint8_t)((g_m.pending + 1) % g_m.item->choice_count);
+        g_m.pending = (uint_least8_t)((g_m.pending + 1) % g_m.item->choice_count);
         choice_paint();
     }
 }
@@ -965,8 +965,8 @@ void atc_menu_init(const atc_menu_table_t *table,
     for (size_t i = 0; i < count; i++) {
         const atc_menu_item_t *a = &items[i];
 
-        if (a->type == ATC_ROW_NOTE && i + 1 < count
-            && items[i + 1].type != ATC_ROW_NOTE)
+        if (a->type == ATC_MENU_ROW_NOTE && i + 1 < count
+            && items[i + 1].type != ATC_MENU_ROW_NOTE)
             menu_printf("WARN: NOTE rows must be last\r\n");
 
         if (a->key) {
@@ -985,17 +985,17 @@ void atc_menu_init(const atc_menu_table_t *table,
 
 static void handle_row_key(const atc_menu_item_t *it, size_t index) {
     switch (it->type) {
-        case ATC_ROW_SUBMENU:
+        case ATC_MENU_ROW_SUBMENU:
             nav_push(it);
             atc_menu_render();
             return;
-        case ATC_ROW_GROUP:
+        case ATC_MENU_ROW_GROUP:
             render_group_span(index);
             return;
-        case ATC_ROW_INPUT:
+        case ATC_MENU_ROW_INPUT:
             input_enter(it, index);
             return;
-        case ATC_ROW_CHOICE:
+        case ATC_MENU_ROW_CHOICE:
             choice_press(it, index);
             return;
         default:

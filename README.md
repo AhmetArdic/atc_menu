@@ -65,8 +65,8 @@ cmake -S . -B build -DLABEL_W=32 -DVALUE_W=20 -DUNIT_W=8 -DNAV_DEPTH=8
 ```c
 #include "atc_menu/atc_menu.h"
 
-static void rd_temp(char *b, size_t n, atc_status_t *st) {
-    snprintf(b, n, "%d", read_temp_c()); *st = ATC_ST_OK;
+static void rd_temp(char *b, size_t n, atc_menu_status_t *st) {
+    snprintf(b, n, "%d", read_temp_c()); *st = ATC_MENU_ST_OK;
 }
 
 ATC_MENU(home,
@@ -88,20 +88,20 @@ Submenu'ler `&other_menu` ile bağlanır; alt tablo, ona referans veren satırda
 
 ## Row tipleri
 
-| Tip                | Görsel                              | Notlar                                      |
-|--------------------|-------------------------------------|---------------------------------------------|
-| `ATC_ROW_GROUP`    | `   Sensors`                        | Bölüm başlığı; key opsiyonel (toplu refresh)|
-| `ATC_ROW_VALUE`    | `t  Temp   45.3 C   OK`             | Read-only skaler                            |
-| `ATC_ROW_STATE`    | `L  LED    ON`                      | İki-durumlu; `action` toggle eder           |
-| `ATC_ROW_ACTION`   | `1  Self test`                      | Hotkey'e bağlı komut                        |
-| `ATC_ROW_SUBMENU`  | `i  ❯ MPU9250 IMU`                  | Alt tabloya drill-down                      |
-| `ATC_ROW_BAR`      | `B  Battery ▕████▎  ▏ 78 % OK`      | 8 hücreli yatay seviye (1/8 sub-cell)       |
-| `ATC_ROW_CHOICE`   | `m  Mode    ❮ NORMAL ❯      OK`     | N-state cycle; opsiyonel commit callback    |
-| `ATC_ROW_INPUT`    | `d  PWM Duty       50 %     OK`     | Inline editor; INT/HEX/STR                  |
-| `ATC_ROW_NOTE`     | dim tam-genişlik metin              | Ekran sonunda; ilki üstüne noktalı ayraç    |
+| Tip                     | Görsel                              | Notlar                                      |
+|-------------------------|-------------------------------------|---------------------------------------------|
+| `ATC_MENU_ROW_GROUP`    | `   Sensors`                        | Bölüm başlığı; key opsiyonel (toplu refresh)|
+| `ATC_MENU_ROW_VALUE`    | `t  Temp   45.3 C   OK`             | Read-only skaler                            |
+| `ATC_MENU_ROW_STATE`    | `L  LED    ON`                      | İki-durumlu; `action` toggle eder           |
+| `ATC_MENU_ROW_ACTION`   | `1  Self test`                      | Hotkey'e bağlı komut                        |
+| `ATC_MENU_ROW_SUBMENU`  | `i  ❯ MPU9250 IMU`                  | Alt tabloya drill-down                      |
+| `ATC_MENU_ROW_BAR`      | `B  Battery ▕████▎  ▏ 78 % OK`      | 8 hücreli yatay seviye (1/8 sub-cell)       |
+| `ATC_MENU_ROW_CHOICE`   | `m  Mode    ❮ NORMAL ❯      OK`     | N-state cycle; opsiyonel commit callback    |
+| `ATC_MENU_ROW_INPUT`    | `d  PWM Duty       50 %     OK`     | Inline editor; INT/HEX/STR                  |
+| `ATC_MENU_ROW_NOTE`     | dim tam-genişlik metin              | Ekran sonunda; ilki üstüne noktalı ayraç    |
 
 **SUBMENU**: `submenu` pointer'ı zorunlu, derinlik `NAV_DEPTH` ile sınırlı.
-**BAR**: `read` yüzdeyi string olarak yazar (`"78"`); renk `atc_status_t`'ten.
+**BAR**: `read` yüzdeyi string olarak yazar (`"78"`); renk `atc_menu_status_t`'ten.
 **CHOICE**: `choices` + `choice_idx` zorunlu. `choice_commit == NULL` →
 immediate cycle; non-NULL → Enter ile commit, Esc revert. String'ler
 `CHOICE_STR_MAX = VALUE_W - 4` (default 6 karakter).

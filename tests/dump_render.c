@@ -8,55 +8,55 @@
 #include <stdio.h>
 
 static int g_pct = 78;
-static void rd_bar(char *b, size_t n, atc_status_t *st) {
+static void rd_bar(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "%d", g_pct);
-    *st = ATC_ST_OK;
+    *st = ATC_MENU_ST_OK;
 }
 
-static void rd_temp(char *b, size_t n, atc_status_t *st) {
+static void rd_temp(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "24.6");
-    *st = ATC_ST_OK;
+    *st = ATC_MENU_ST_OK;
 }
 
-static void rd_led(char *b, size_t n, atc_status_t *st) {
-    (void)b; (void)n; *st = ATC_ST_ON;
+static void rd_led(char *b, size_t n, atc_menu_status_t *st) {
+    (void)b; (void)n; *st = ATC_MENU_ST_ON;
 }
 
 static const char *modes[]  = { "ECO", "NORMAL", "TURBO" };
-static uint8_t     mode_idx = 1;
+static uint_least8_t mode_idx = 1;
 
 static int32_t pwm = 50;
-static void rd_pwm(char *b, size_t n, atc_status_t *st) {
-    snprintf(b, n, "%ld", (long)pwm); *st = ATC_ST_OK;
+static void rd_pwm(char *b, size_t n, atc_menu_status_t *st) {
+    snprintf(b, n, "%ld", (long)pwm); *st = ATC_MENU_ST_OK;
 }
 static bool commit_pwm(const char *s) { (void)s; return true; }
 
 static const atc_menu_item_t leaf[] = {
-    { .type = ATC_ROW_GROUP, .label = "Inner sub-page" },
+    { .type = ATC_MENU_ROW_GROUP, .label = "Inner sub-page" },
 };
 static const atc_menu_table_t leaf_tbl = {
     .items = leaf, .count = 1,
 };
 
 static const atc_menu_item_t items[] = {
-    { .type = ATC_ROW_GROUP, .label = "Sensors" },
-    { .type = ATC_ROW_VALUE,   .key = 't', .label = "Temperature", .unit = "C", .read = rd_temp },
-    { .type = ATC_ROW_STATE,   .key = 'L', .label = "LED",          .unit = "",  .read = rd_led },
-    { .type = ATC_ROW_GROUP,   .label = "Levels (BAR)" },
-    { .type = ATC_ROW_BAR,     .key = 'B', .label = "Battery",      .read = rd_bar },
-    { .type = ATC_ROW_GROUP,   .label = "Modes (CHOICE)" },
-    { .type = ATC_ROW_CHOICE,  .key = 'm', .label = "Power Mode",
+    { .type = ATC_MENU_ROW_GROUP, .label = "Sensors" },
+    { .type = ATC_MENU_ROW_VALUE,   .key = 't', .label = "Temperature", .unit = "C", .read = rd_temp },
+    { .type = ATC_MENU_ROW_STATE,   .key = 'L', .label = "LED",          .unit = "",  .read = rd_led },
+    { .type = ATC_MENU_ROW_GROUP,   .label = "Levels (BAR)" },
+    { .type = ATC_MENU_ROW_BAR,     .key = 'B', .label = "Battery",      .read = rd_bar },
+    { .type = ATC_MENU_ROW_GROUP,   .label = "Modes (CHOICE)" },
+    { .type = ATC_MENU_ROW_CHOICE,  .key = 'm', .label = "Power Mode",
       .choices = modes, .choice_count = 3, .choice_idx = &mode_idx },
-    { .type = ATC_ROW_GROUP,   .label = "Setpoints (INPUT)" },
-    { .type = ATC_ROW_INPUT,   .key = 'd', .label = "PWM Duty", .unit = "%",
-      .read = rd_pwm, .input_type = ATC_INPUT_INT,
+    { .type = ATC_MENU_ROW_GROUP,   .label = "Setpoints (INPUT)" },
+    { .type = ATC_MENU_ROW_INPUT,   .key = 'd', .label = "PWM Duty", .unit = "%",
+      .read = rd_pwm, .input_type = ATC_MENU_INPUT_INT,
       .input_min = 0, .input_max = 100, .input_commit = commit_pwm },
-    { .type = ATC_ROW_GROUP,   .label = "Drill into" },
-    { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "Inner page",
+    { .type = ATC_MENU_ROW_GROUP,   .label = "Drill into" },
+    { .type = ATC_MENU_ROW_SUBMENU, .key = 'i', .label = "Inner page",
       .submenu = &leaf_tbl },
-    { .type = ATC_ROW_NOTE,
+    { .type = ATC_MENU_ROW_NOTE,
       .label = "Kitchen-sink demo: every row widget on one screen." },
-    { .type = ATC_ROW_NOTE,
+    { .type = ATC_MENU_ROW_NOTE,
       .label = "Press hotkeys to interact; 'b' pops back from sub-pages." },
 };
 static const atc_menu_table_t items_tbl = {

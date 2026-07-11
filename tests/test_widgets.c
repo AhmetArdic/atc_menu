@@ -11,23 +11,23 @@
 #include <stdlib.h>
 
 static int g_bar_pct;
-static atc_status_t g_bar_status;
+static atc_menu_status_t g_bar_status;
 
-static void rd_bar(char *b, size_t n, atc_status_t *st) {
+static void rd_bar(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "%d", g_bar_pct);
     *st = g_bar_status;
 }
 
 static const char *choices_3[] = { "ECO", "NORMAL", "TURBO" };
-static uint8_t     choice_idx_3;
+static uint_least8_t choice_idx_3;
 
 static int  g_commit_calls;
 static char g_commit_last[32];
 static int  g_input_value;
 
-static void rd_input(char *b, size_t n, atc_status_t *st) {
+static void rd_input(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "%d", g_input_value);
-    *st = ATC_ST_OK;
+    *st = ATC_MENU_ST_OK;
 }
 
 static bool commit_input(const char *s) {
@@ -49,11 +49,11 @@ static void commit_choice_cb(void) { g_choice_commits++; }
 int main(void) {
     /* ---------- BAR rendering ---------- */
     static const atc_menu_item_t bar_items[] = {
-        { .type = ATC_ROW_BAR, .key = 'b', .label = "Battery", .read = rd_bar },
+        { .type = ATC_MENU_ROW_BAR, .key = 'b', .label = "Battery", .read = rd_bar },
     };
 
     /* Negative clamps to an empty bar. */
-    g_bar_pct = -10;  g_bar_status = ATC_ST_ERR;
+    g_bar_pct = -10;  g_bar_status = ATC_MENU_ST_ERR;
     mock_reset();
     ATC_INIT_ITEMS(bar_items, &mock_port);
     atc_menu_render();
@@ -61,7 +61,7 @@ int main(void) {
     EXPECT_CONTAINS(mock_buffer(), "0 %");
     EXPECT_CONTAINS(mock_buffer(), "\xe2\x9c\x95"); /* ✕ (ERR) */
 
-    g_bar_pct = 50;  g_bar_status = ATC_ST_WARN;
+    g_bar_pct = 50;  g_bar_status = ATC_MENU_ST_WARN;
     mock_reset();
     atc_menu_render();
     EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\x95\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88    \xe2\x96\x8f"); /* ▕████    ▏ */
@@ -69,7 +69,7 @@ int main(void) {
     EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\xb2"); /* ▲ (WARN) */
 
     /* >100 clamps to a full bar. */
-    g_bar_pct = 250;  g_bar_status = ATC_ST_OK;
+    g_bar_pct = 250;  g_bar_status = ATC_MENU_ST_OK;
     mock_reset();
     atc_menu_render();
     EXPECT_CONTAINS(mock_buffer(), "\xe2\x96\x95\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88\xe2\x96\x8f"); /* ▕████████▏ */
@@ -79,7 +79,7 @@ int main(void) {
     /* ---------- CHOICE rendering & cycling ---------- */
     choice_idx_3 = 0;
     static const atc_menu_item_t choice_items[] = {
-        { .type = ATC_ROW_CHOICE, .key = 'm', .label = "Mode",
+        { .type = ATC_MENU_ROW_CHOICE, .key = 'm', .label = "Mode",
           .choices = choices_3, .choice_count = 3, .choice_idx = &choice_idx_3 },
     };
 
@@ -102,13 +102,13 @@ int main(void) {
     EXPECT_CONTAINS(mock_buffer(), "ECO");
 
     /* ---------- CHOICE with commit callback: edit mode ---------- */
-    static uint8_t      choice_idx_pwr;
+    static uint_least8_t choice_idx_pwr;
     static const char *choices_pwr[] = { "ECO", "NORMAL", "TURBO" };
 
     g_choice_commits = 0;
     choice_idx_pwr   = 0;
     static const atc_menu_item_t choice_commit_items[] = {
-        { .type = ATC_ROW_CHOICE, .key = 'p', .label = "Power",
+        { .type = ATC_MENU_ROW_CHOICE, .key = 'p', .label = "Power",
           .choices = choices_pwr, .choice_count = 3, .choice_idx = &choice_idx_pwr,
           .choice_commit = commit_choice_cb },
     };
@@ -151,9 +151,9 @@ int main(void) {
 
     /* CHOICE with overlong choice string warns at init. */
     static const char *bad_choices[] = { "OK", "TOO_LONG_STRING" };
-    static uint8_t bad_idx;
+    static uint_least8_t bad_idx;
     static const atc_menu_item_t bad_choice_items[] = {
-        { .type = ATC_ROW_CHOICE, .key = 'x', .label = "Bad",
+        { .type = ATC_MENU_ROW_CHOICE, .key = 'x', .label = "Bad",
           .choices = bad_choices, .choice_count = 2, .choice_idx = &bad_idx },
     };
     mock_reset();
@@ -163,7 +163,7 @@ int main(void) {
 
     /* CHOICE missing pointer warns. */
     static const atc_menu_item_t missing_choice_items[] = {
-        { .type = ATC_ROW_CHOICE, .key = 'y', .label = "Bad" },
+        { .type = ATC_MENU_ROW_CHOICE, .key = 'y', .label = "Bad" },
     };
     mock_reset();
     ATC_INIT_ITEMS(missing_choice_items, &mock_port);
@@ -175,8 +175,8 @@ int main(void) {
     g_commit_last[0] = '\0';
 
     static const atc_menu_item_t input_items[] = {
-        { .type = ATC_ROW_INPUT, .key = 'd', .label = "PWM Duty", .unit = "%",
-          .read = rd_input, .input_type = ATC_INPUT_INT,
+        { .type = ATC_MENU_ROW_INPUT, .key = 'd', .label = "PWM Duty", .unit = "%",
+          .read = rd_input, .input_type = ATC_MENU_INPUT_INT,
           .input_min = 0, .input_max = 100, .input_commit = commit_input },
     };
 
@@ -232,8 +232,8 @@ int main(void) {
     /* ---------- INPUT: rejecting commit keeps editor open ---------- */
     /* Use key 'k' — 'r' would collide with the built-in refresh shortcut. */
     static const atc_menu_item_t reject_items[] = {
-        { .type = ATC_ROW_INPUT, .key = 'k', .label = "Locked", .unit = "",
-          .read = rd_input, .input_type = ATC_INPUT_INT,
+        { .type = ATC_MENU_ROW_INPUT, .key = 'k', .label = "Locked", .unit = "",
+          .read = rd_input, .input_type = ATC_MENU_INPUT_INT,
           .input_min = 0, .input_max = 100, .input_commit = commit_reject },
     };
     g_reject_commit_calls = 0;
@@ -249,29 +249,29 @@ int main(void) {
 
     /* ---------- Init validation: BAR / INPUT missing required callbacks ---------- */
     static const atc_menu_item_t bar_no_read[] = {
-        { .type = ATC_ROW_BAR, .key = 'B', .label = "B" },
+        { .type = ATC_MENU_ROW_BAR, .key = 'B', .label = "B" },
     };
     mock_reset();
     ATC_INIT_ITEMS(bar_no_read, &mock_port);
-    EXPECT_CONTAINS(mock_buffer(), "ATC_ROW_BAR");
+    EXPECT_CONTAINS(mock_buffer(), "ATC_MENU_ROW_BAR");
     EXPECT_CONTAINS(mock_buffer(), "missing read");
 
     static const atc_menu_item_t input_no_commit[] = {
-        { .type = ATC_ROW_INPUT, .key = 'I', .label = "I", .unit = "",
-          .read = rd_input, .input_type = ATC_INPUT_INT,
+        { .type = ATC_MENU_ROW_INPUT, .key = 'I', .label = "I", .unit = "",
+          .read = rd_input, .input_type = ATC_MENU_INPUT_INT,
           .input_min = 0, .input_max = 100 },
     };
     mock_reset();
     ATC_INIT_ITEMS(input_no_commit, &mock_port);
-    EXPECT_CONTAINS(mock_buffer(), "ATC_ROW_INPUT");
+    EXPECT_CONTAINS(mock_buffer(), "ATC_MENU_ROW_INPUT");
     EXPECT_CONTAINS(mock_buffer(), "missing read/input_commit");
 
     /* ---------- Init validation: every reserved system key warns ---------- */
     static const atc_menu_item_t reserved[] = {
-        { .type = ATC_ROW_VALUE, .key = 'r', .label = "R", .read = rd_input },
-        { .type = ATC_ROW_VALUE, .key = 'b', .label = "B", .read = rd_input },
-        { .type = ATC_ROW_VALUE, .key = '?', .label = "P", .read = rd_input },
-        { .type = ATC_ROW_VALUE, .key = ':', .label = "C", .read = rd_input },
+        { .type = ATC_MENU_ROW_VALUE, .key = 'r', .label = "R", .read = rd_input },
+        { .type = ATC_MENU_ROW_VALUE, .key = 'b', .label = "B", .read = rd_input },
+        { .type = ATC_MENU_ROW_VALUE, .key = '?', .label = "P", .read = rd_input },
+        { .type = ATC_MENU_ROW_VALUE, .key = ':', .label = "C", .read = rd_input },
     };
     mock_reset();
     ATC_INIT_ITEMS(reserved, &mock_port);

@@ -4,16 +4,16 @@
 
 #include <stdio.h>
 
-static void rd_dummy(char *b, size_t n, atc_status_t *st) {
-    (void)b; (void)n; *st = ATC_ST_OK;
+static void rd_dummy(char *b, size_t n, atc_menu_status_t *st) {
+    (void)b; (void)n; *st = ATC_MENU_ST_OK;
 }
 
 static const atc_menu_item_t bad[] = {
-    { .type = ATC_ROW_VALUE, .key = 'r', .label = "Refresh-clash", .read = rd_dummy },
-    { .type = ATC_ROW_VALUE, .key = 'b', .label = "Back-clash",    .read = rd_dummy },
-    { .type = ATC_ROW_VALUE, .key = '?', .label = "Path-clash",    .read = rd_dummy },
-    { .type = ATC_ROW_VALUE, .key = ':', .label = "Cmd-clash",     .read = rd_dummy },
-    { .type = ATC_ROW_VALUE, .key = 'x', .label = "OK-key",        .read = rd_dummy },
+    { .type = ATC_MENU_ROW_VALUE, .key = 'r', .label = "Refresh-clash", .read = rd_dummy },
+    { .type = ATC_MENU_ROW_VALUE, .key = 'b', .label = "Back-clash",    .read = rd_dummy },
+    { .type = ATC_MENU_ROW_VALUE, .key = '?', .label = "Path-clash",    .read = rd_dummy },
+    { .type = ATC_MENU_ROW_VALUE, .key = ':', .label = "Cmd-clash",     .read = rd_dummy },
+    { .type = ATC_MENU_ROW_VALUE, .key = 'x', .label = "OK-key",        .read = rd_dummy },
 };
 
 int main(void) {

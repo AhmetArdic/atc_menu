@@ -84,19 +84,19 @@ static size_t g_tx_bytes;
 
 static bool app_led_on;
 
-static void rd_temp(char *b, size_t n, atc_status_t *st) {
+static void rd_temp(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "%.1f", g_mcu.mcu_temp_c);
-    *st = (g_mcu.mcu_temp_c < 70.0f) ? ATC_ST_OK : ATC_ST_WARN;
+    *st = (g_mcu.mcu_temp_c < 70.0f) ? ATC_MENU_ST_OK : ATC_MENU_ST_WARN;
 }
 
-static void rd_vbat(char *b, size_t n, atc_status_t *st) {
+static void rd_vbat(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "%.2f", g_mcu.vbat_v);
-    *st = (g_mcu.vbat_v > 3.3f) ? ATC_ST_OK : ATC_ST_ERR;
+    *st = (g_mcu.vbat_v > 3.3f) ? ATC_MENU_ST_OK : ATC_MENU_ST_ERR;
 }
 
-static void rd_led(char *b, size_t n, atc_status_t *st) {
+static void rd_led(char *b, size_t n, atc_menu_status_t *st) {
     (void)b; (void)n;
-    *st = app_led_on ? ATC_ST_ON : ATC_ST_OFF;
+    *st = app_led_on ? ATC_MENU_ST_ON : ATC_MENU_ST_OFF;
 }
 
 static void act_toggle_led(void) {
@@ -114,28 +114,28 @@ static void act_self_test(void) {
 
 READ_F(ina_v, g_ina.bus_v,      "%.2f", st_range(g_ina.bus_v, 3.0f, 4.2f))
 READ_F(ina_i, g_ina.current_ma, "%.0f", st_max(g_ina.current_ma, 1500.f, 2500.f))
-READ_F(ina_p, g_ina.power_mw,   "%.0f", ATC_ST_NONE)
+READ_F(ina_p, g_ina.power_mw,   "%.0f", ATC_MENU_ST_NONE)
 
 READ_F(bme_t, g_bme.temp_c,       "%.1f", st_range(g_bme.temp_c, 0.f, 50.f))
 READ_F(bme_h, g_bme.humidity,     "%.1f", st_range(g_bme.humidity, 20.f, 80.f))
-READ_F(bme_p, g_bme.pressure_hpa, "%.1f", ATC_ST_NONE)
-READ_F(bme_a, g_bme.altitude_m,   "%.2f", ATC_ST_NONE)
+READ_F(bme_p, g_bme.pressure_hpa, "%.1f", ATC_MENU_ST_NONE)
+READ_F(bme_a, g_bme.altitude_m,   "%.2f", ATC_MENU_ST_NONE)
 
-READ_F(mpu_ax, g_mpu.ax, "%+.2f", ATC_ST_NONE)
-READ_F(mpu_ay, g_mpu.ay, "%+.2f", ATC_ST_NONE)
-READ_F(mpu_az, g_mpu.az, "%+.2f", ATC_ST_NONE)
-READ_F(mpu_gx, g_mpu.gx, "%+.1f", ATC_ST_NONE)
-READ_F(mpu_gy, g_mpu.gy, "%+.1f", ATC_ST_NONE)
-READ_F(mpu_gz, g_mpu.gz, "%+.1f", ATC_ST_NONE)
-READ_F(mpu_mx, g_mpu.mx, "%+.1f", ATC_ST_NONE)
-READ_F(mpu_my, g_mpu.my, "%+.1f", ATC_ST_NONE)
-READ_F(mpu_mz, g_mpu.mz, "%+.1f", ATC_ST_NONE)
+READ_F(mpu_ax, g_mpu.ax, "%+.2f", ATC_MENU_ST_NONE)
+READ_F(mpu_ay, g_mpu.ay, "%+.2f", ATC_MENU_ST_NONE)
+READ_F(mpu_az, g_mpu.az, "%+.2f", ATC_MENU_ST_NONE)
+READ_F(mpu_gx, g_mpu.gx, "%+.1f", ATC_MENU_ST_NONE)
+READ_F(mpu_gy, g_mpu.gy, "%+.1f", ATC_MENU_ST_NONE)
+READ_F(mpu_gz, g_mpu.gz, "%+.1f", ATC_MENU_ST_NONE)
+READ_F(mpu_mx, g_mpu.mx, "%+.1f", ATC_MENU_ST_NONE)
+READ_F(mpu_my, g_mpu.my, "%+.1f", ATC_MENU_ST_NONE)
+READ_F(mpu_mz, g_mpu.mz, "%+.1f", ATC_MENU_ST_NONE)
 
-static uint8_t      app_pwr_mode = 1;
-static uint8_t      app_fan_mode = 0;
-static int32_t      app_pwm_duty = 50;
-static int32_t      app_threshold_mv = 3300;
-static unsigned int app_cpu_tick;
+static uint_least8_t app_pwr_mode = 1;
+static uint_least8_t app_fan_mode = 0;
+static int32_t       app_pwm_duty = 50;
+static int32_t       app_threshold_mv = 3300;
+static unsigned int  app_cpu_tick;
 
 static const char *app_pwr_choices[] = { "ECO", "NORMAL", "TURBO" };
 static const char *app_fan_choices[] = { "AUTO", "LOW", "MED", "HIGH" };
@@ -147,30 +147,30 @@ static void commit_fan_mode(void) {
     fprintf(stderr, "  [backend] Fan curve -> %s\n",  app_fan_choices[app_fan_mode]);
 }
 
-static void rd_battery_pct(char *b, size_t n, atc_status_t *st) {
+static void rd_battery_pct(char *b, size_t n, atc_menu_status_t *st) {
     float v = g_mcu.vbat_v;
     if (v < 3.0f) v = 3.0f;
     if (v > 4.2f) v = 4.2f;
     int pct = (int)((v - 3.0f) * 100.0f / 1.2f + 0.5f);
     snprintf(b, n, "%d", pct);
-    *st = (pct < 20) ? ATC_ST_ERR : (pct < 40) ? ATC_ST_WARN : ATC_ST_OK;
+    *st = (pct < 20) ? ATC_MENU_ST_ERR : (pct < 40) ? ATC_MENU_ST_WARN : ATC_MENU_ST_OK;
 }
 
-static void rd_cpu_load(char *b, size_t n, atc_status_t *st) {
+static void rd_cpu_load(char *b, size_t n, atc_menu_status_t *st) {
     unsigned int t = (app_cpu_tick++) % 200;
     int pct = (t < 100) ? (int)t : (int)(200 - t);
     snprintf(b, n, "%d", pct);
-    *st = (pct >= 85) ? ATC_ST_ERR : (pct >= 60) ? ATC_ST_WARN : ATC_ST_OK;
+    *st = (pct >= 85) ? ATC_MENU_ST_ERR : (pct >= 60) ? ATC_MENU_ST_WARN : ATC_MENU_ST_OK;
 }
 
-static void rd_pwm_duty(char *b, size_t n, atc_status_t *st) {
+static void rd_pwm_duty(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "%ld", (long)app_pwm_duty);
-    *st = ATC_ST_OK;
+    *st = ATC_MENU_ST_OK;
 }
 
-static void rd_threshold(char *b, size_t n, atc_status_t *st) {
+static void rd_threshold(char *b, size_t n, atc_menu_status_t *st) {
     snprintf(b, n, "%ld", (long)app_threshold_mv);
-    *st = ATC_ST_OK;
+    *st = ATC_MENU_ST_OK;
 }
 
 static bool commit_pwm_duty(const char *s) {
@@ -238,9 +238,9 @@ ATC_MENU(widgets,
 
     ATC_GROUP (     "Setpoints (INPUT)"),
     ATC_INPUT ('d', "PWM Duty",  "%",  rd_pwm_duty,
-               ATC_INPUT_INT, 0, 100,  commit_pwm_duty),
+               ATC_MENU_INPUT_INT, 0, 100,  commit_pwm_duty),
     ATC_INPUT ('h', "Threshold", "mV", rd_threshold,
-               ATC_INPUT_INT, 0, 5000, commit_threshold),
+               ATC_MENU_INPUT_INT, 0, 5000, commit_threshold),
 );
 
 /* -------------------------------------------------------------- home menu */

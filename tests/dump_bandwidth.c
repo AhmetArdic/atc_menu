@@ -7,36 +7,36 @@
 #include <stdio.h>
 
 static int g_pct = 50;
-static void rd_bar(char *b, size_t n, atc_status_t *st) {
-    snprintf(b, n, "%d", g_pct); *st = ATC_ST_OK;
+static void rd_bar(char *b, size_t n, atc_menu_status_t *st) {
+    snprintf(b, n, "%d", g_pct); *st = ATC_MENU_ST_OK;
 }
-static void rd_temp(char *b, size_t n, atc_status_t *st) {
-    snprintf(b, n, "24.6"); *st = ATC_ST_OK;
+static void rd_temp(char *b, size_t n, atc_menu_status_t *st) {
+    snprintf(b, n, "24.6"); *st = ATC_MENU_ST_OK;
 }
-static void rd_led(char *b, size_t n, atc_status_t *st) {
-    (void)b; (void)n; *st = ATC_ST_ON;
+static void rd_led(char *b, size_t n, atc_menu_status_t *st) {
+    (void)b; (void)n; *st = ATC_MENU_ST_ON;
 }
 static const char *modes[] = { "ECO", "NORMAL", "TURBO" };
-static uint8_t     mode_idx = 0;
+static uint_least8_t mode_idx = 0;
 static void noop(void) {}
 static int32_t pwm = 50;
-static void rd_pwm(char *b, size_t n, atc_status_t *st) {
-    snprintf(b, n, "%ld", (long)pwm); *st = ATC_ST_OK;
+static void rd_pwm(char *b, size_t n, atc_menu_status_t *st) {
+    snprintf(b, n, "%ld", (long)pwm); *st = ATC_MENU_ST_OK;
 }
 static bool commit_pwm(const char *s) { (void)s; return true; }
 
 static const atc_menu_item_t items[] = {
-    { .type = ATC_ROW_GROUP, .label = "Sensors" },
-    { .type = ATC_ROW_VALUE,  .key = 't', .label = "Temp",   .unit = "C",
+    { .type = ATC_MENU_ROW_GROUP, .label = "Sensors" },
+    { .type = ATC_MENU_ROW_VALUE,  .key = 't', .label = "Temp",   .unit = "C",
       .read = rd_temp },
-    { .type = ATC_ROW_STATE,  .key = 'L', .label = "LED",    .unit = "",
+    { .type = ATC_MENU_ROW_STATE,  .key = 'L', .label = "LED",    .unit = "",
       .read = rd_led, .action = noop },
-    { .type = ATC_ROW_BAR,    .key = 'B', .label = "Battery", .read = rd_bar },
-    { .type = ATC_ROW_CHOICE, .key = 'm', .label = "Mode",
+    { .type = ATC_MENU_ROW_BAR,    .key = 'B', .label = "Battery", .read = rd_bar },
+    { .type = ATC_MENU_ROW_CHOICE, .key = 'm', .label = "Mode",
       .choices = modes, .choice_count = 3, .choice_idx = &mode_idx,
       .choice_commit = noop },
-    { .type = ATC_ROW_INPUT,  .key = 'd', .label = "PWM Duty", .unit = "%",
-      .read = rd_pwm, .input_type = ATC_INPUT_INT,
+    { .type = ATC_MENU_ROW_INPUT,  .key = 'd', .label = "PWM Duty", .unit = "%",
+      .read = rd_pwm, .input_type = ATC_MENU_INPUT_INT,
       .input_min = 0, .input_max = 100, .input_commit = commit_pwm },
 };
 static const atc_menu_table_t tbl = {

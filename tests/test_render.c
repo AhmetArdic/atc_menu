@@ -9,24 +9,24 @@
 
 #include <stdio.h>
 
-static void rd_temp(char *b, size_t n, atc_status_t *st) {
-    *st = ATC_ST_OK;
+static void rd_temp(char *b, size_t n, atc_menu_status_t *st) {
+    *st = ATC_MENU_ST_OK;
     if (b && n) snprintf(b, n, "42.0");
 }
 
-static void rd_led(char *b, size_t n, atc_status_t *st) {
-    (void)b; (void)n; *st = ATC_ST_ON;
+static void rd_led(char *b, size_t n, atc_menu_status_t *st) {
+    (void)b; (void)n; *st = ATC_MENU_ST_ON;
 }
 
 static void noop(void) {}
 
 int main(void) {
     static const atc_menu_item_t items[] = {
-        { .type = ATC_ROW_GROUP, .label = "Sensors", .unit = "" },
-        { .type = ATC_ROW_VALUE, .key = 't', .label = "Temp", .unit = "C",
+        { .type = ATC_MENU_ROW_GROUP, .label = "Sensors", .unit = "" },
+        { .type = ATC_MENU_ROW_VALUE, .key = 't', .label = "Temp", .unit = "C",
           .read = rd_temp },
-        { .type = ATC_ROW_GROUP, .label = "Outputs", .unit = "" },
-        { .type = ATC_ROW_STATE, .key = 'L', .label = "LED", .unit = "",
+        { .type = ATC_MENU_ROW_GROUP, .label = "Outputs", .unit = "" },
+        { .type = ATC_MENU_ROW_STATE, .key = 'L', .label = "LED", .unit = "",
           .read = rd_led, .action = noop },
     };
 
@@ -61,17 +61,17 @@ int main(void) {
     /* ---------------- Sub-menu render ----------------- */
 
     static const atc_menu_item_t sub[] = {
-        { .type = ATC_ROW_GROUP, .label = "SubGroup" },
-        { .type = ATC_ROW_VALUE, .label = "Y", .unit = "V", .read = rd_temp },
+        { .type = ATC_MENU_ROW_GROUP, .label = "SubGroup" },
+        { .type = ATC_MENU_ROW_VALUE, .label = "Y", .unit = "V", .read = rd_temp },
     };
     static const atc_menu_table_t sub_tbl = {
         .items = sub, .count = sizeof sub / sizeof sub[0],
     };
     static const atc_menu_item_t with_sub[] = {
-        { .type = ATC_ROW_GROUP,   .label = "Top" },
-        { .type = ATC_ROW_VALUE,   .key = 't', .label = "Temp", .unit = "C",
+        { .type = ATC_MENU_ROW_GROUP,   .label = "Top" },
+        { .type = ATC_MENU_ROW_VALUE,   .key = 't', .label = "Temp", .unit = "C",
           .read = rd_temp },
-        { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "Inner",
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'i', .label = "Inner",
           .submenu = &sub_tbl },
     };
 
@@ -101,20 +101,20 @@ int main(void) {
 
     /* ---------------- Notes block ----------------- */
     static const atc_menu_item_t leaf_with_notes_items[] = {
-        { .type = ATC_ROW_GROUP, .label = "Leaf" },
-        { .type = ATC_ROW_VALUE, .label = "Y", .unit = "V", .read = rd_temp },
-        { .type = ATC_ROW_NOTE,  .label = "FIRST_NOTE_LINE" },
-        { .type = ATC_ROW_NOTE,  .label = "SECOND_NOTE_LINE" },
+        { .type = ATC_MENU_ROW_GROUP, .label = "Leaf" },
+        { .type = ATC_MENU_ROW_VALUE, .label = "Y", .unit = "V", .read = rd_temp },
+        { .type = ATC_MENU_ROW_NOTE,  .label = "FIRST_NOTE_LINE" },
+        { .type = ATC_MENU_ROW_NOTE,  .label = "SECOND_NOTE_LINE" },
     };
     static const atc_menu_table_t leaf_with_notes = {
         .items = leaf_with_notes_items,
         .count = sizeof leaf_with_notes_items / sizeof leaf_with_notes_items[0],
     };
     static const atc_menu_item_t notes_root_items[] = {
-        { .type = ATC_ROW_GROUP,   .label = "Top" },
-        { .type = ATC_ROW_SUBMENU, .key = 'i', .label = "Inner",
+        { .type = ATC_MENU_ROW_GROUP,   .label = "Top" },
+        { .type = ATC_MENU_ROW_SUBMENU, .key = 'i', .label = "Inner",
           .submenu = &leaf_with_notes },
-        { .type = ATC_ROW_NOTE,    .label = "ROOT_NOTE_LINE" },
+        { .type = ATC_MENU_ROW_NOTE,    .label = "ROOT_NOTE_LINE" },
     };
     static const atc_menu_table_t notes_root = {
         .items = notes_root_items,
@@ -147,7 +147,7 @@ int main(void) {
 
     /* Oversize label/unit are truncated at their column boundary. */
     static const atc_menu_item_t over[] = {
-        { .type = ATC_ROW_VALUE, .key = 'x',
+        { .type = ATC_MENU_ROW_VALUE, .key = 'x',
           .label = "ABCDEFGHIJKLMNOPQRSTUVWX_TAILSHOULDDISAPPEAR",
           .unit  = "kgPAS_TAIL", .read = rd_temp },
     };
