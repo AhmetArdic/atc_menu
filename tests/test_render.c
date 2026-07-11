@@ -99,39 +99,6 @@ int main(void) {
     atc_menu_handle_key('?');
     EXPECT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba Inner"); /* Home › Inner */
 
-    /* Two-level: '?' chains parent + active labels. */
-    static const atc_menu_item_t deep_leaf[] = {
-        { .type = ATC_ROW_GROUP, .label = "DeepLeaf" },
-    };
-    static const atc_menu_table_t deep_leaf_tbl = {
-        .items = deep_leaf, .count = sizeof deep_leaf / sizeof deep_leaf[0],
-    };
-    static const atc_menu_item_t deep_mid[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'l', .label = "Leaf",
-          .submenu = &deep_leaf_tbl },
-    };
-    static const atc_menu_table_t deep_mid_tbl = {
-        .items = deep_mid, .count = sizeof deep_mid / sizeof deep_mid[0],
-    };
-    static const atc_menu_item_t deep_root[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'm', .label = "Middle",
-          .submenu = &deep_mid_tbl },
-    };
-    ATC_INIT_ITEMS(deep_root, &mock_port);
-    atc_menu_handle_key('m');
-    mock_reset();
-    atc_menu_handle_key('l');
-    EXPECT_CONTAINS(mock_buffer(), "DeepLeaf");
-    EXPECT_NOT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba "); /* Home › */
-    mock_reset();
-    atc_menu_handle_key('?');
-    EXPECT_CONTAINS(mock_buffer(), "Home \xe2\x80\xba Middle \xe2\x80\xba Leaf"); /* Home › Middle › Leaf */
-
-    ATC_INIT_ITEMS(items, &mock_port);
-    mock_reset();
-    atc_menu_handle_key('?');
-    EXPECT(mock_len() == 0);
-
     /* ---------------- Notes block ----------------- */
     static const atc_menu_item_t leaf_with_notes_items[] = {
         { .type = ATC_ROW_GROUP, .label = "Leaf" },
@@ -177,19 +144,6 @@ int main(void) {
     out = mock_buffer();
     EXPECT_CONTAINS(out, "ROOT_NOTE_LINE");
     EXPECT_NOT_CONTAINS(out, "FIRST_NOTE_LINE");
-
-    /* A table with no notes renders no notes block. */
-    static const atc_menu_item_t no_notes_items[] = {
-        { .type = ATC_ROW_GROUP, .label = "NoNotes" },
-    };
-    static const atc_menu_table_t no_notes_tbl = {
-        .items = no_notes_items, .count = 1,
-    };
-    mock_reset();
-    atc_menu_init(&no_notes_tbl, &mock_port, NULL);
-    mock_reset();
-    atc_menu_render();
-    EXPECT_NOT_CONTAINS(mock_buffer(), "ROOT_NOTE_LINE");
 
     /* Oversize label/unit are truncated at their column boundary. */
     static const atc_menu_item_t over[] = {

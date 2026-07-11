@@ -28,32 +28,20 @@ int main(void) {
     ATC_INIT_ITEMS(good, &mock_port);
     EXPECT_NOT_CONTAINS(mock_buffer(), "WARN");
 
-    /* VALUE without read must warn. */
-    static const atc_menu_item_t bad_value[] = {
-        { .type = ATC_ROW_VALUE, .key = 't', .label = "Temp", .unit = "" },
-    };
-    mock_reset();
-    ATC_INIT_ITEMS(bad_value, &mock_port);
-    EXPECT_CONTAINS(mock_buffer(), "WARN");
-    EXPECT_CONTAINS(mock_buffer(), "missing read");
-
-    /* STATE without action must warn. */
-    static const atc_menu_item_t bad_state[] = {
-        { .type = ATC_ROW_STATE, .key = 'L', .label = "LED", .unit = "",
+    /* Rows missing their required callbacks each warn. */
+    static const atc_menu_item_t bad_rows[] = {
+        { .type = ATC_ROW_VALUE,  .key = 't', .label = "Temp", .unit = "" },
+        { .type = ATC_ROW_STATE,  .key = 'L', .label = "LED",  .unit = "",
           .read = rd_ok },
+        { .type = ATC_ROW_ACTION, .key = '1', .label = "Run",  .unit = "" },
+        { .type = ATC_ROW_SUBMENU, .key = 's', .label = "S" },
     };
     mock_reset();
-    ATC_INIT_ITEMS(bad_state, &mock_port);
-    EXPECT_CONTAINS(mock_buffer(), "WARN");
-
-    /* ACTION without action must warn. */
-    static const atc_menu_item_t bad_action[] = {
-        { .type = ATC_ROW_ACTION, .key = '1', .label = "Run", .unit = "" },
-    };
-    mock_reset();
-    ATC_INIT_ITEMS(bad_action, &mock_port);
-    EXPECT_CONTAINS(mock_buffer(), "WARN");
-    EXPECT_CONTAINS(mock_buffer(), "missing action");
+    ATC_INIT_ITEMS(bad_rows, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "ATC_ROW_VALUE 't' missing read");
+    EXPECT_CONTAINS(mock_buffer(), "ATC_ROW_STATE 'L' missing read/action");
+    EXPECT_CONTAINS(mock_buffer(), "ATC_ROW_ACTION '1' missing action");
+    EXPECT_CONTAINS(mock_buffer(), "ATC_ROW_SUBMENU 's' missing submenu");
 
     /* Duplicate hotkeys must warn. */
     static const atc_menu_item_t dup[] = {
@@ -65,15 +53,6 @@ int main(void) {
     mock_reset();
     ATC_INIT_ITEMS(dup, &mock_port);
     EXPECT_CONTAINS(mock_buffer(), "dup key");
-
-    /* SUBMENU without a submenu pointer must warn. */
-    static const atc_menu_item_t bad_sub[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 's', .label = "S" },
-    };
-    mock_reset();
-    ATC_INIT_ITEMS(bad_sub, &mock_port);
-    EXPECT_CONTAINS(mock_buffer(), "WARN");
-    EXPECT_CONTAINS(mock_buffer(), "missing submenu");
 
     /* Valid SUBMENU produces no warnings. */
     static const atc_menu_item_t leaf[] = {
@@ -100,23 +79,14 @@ int main(void) {
     EXPECT_CONTAINS(mock_buffer(), "built-in back");
 
     /* Label/unit longer than their column must warn. */
-    static const atc_menu_item_t long_label[] = {
+    static const atc_menu_item_t long_label_unit[] = {
         { .type = ATC_ROW_VALUE, .key = 't',
           .label = "ThisLabelIsWayTooLongForTheLabelColumnToFit",
-          .unit = "C", .read = rd_ok },
-    };
-    mock_reset();
-    ATC_INIT_ITEMS(long_label, &mock_port);
-    EXPECT_CONTAINS(mock_buffer(), "WARN");
-    EXPECT_CONTAINS(mock_buffer(), "label");
-
-    static const atc_menu_item_t long_unit[] = {
-        { .type = ATC_ROW_VALUE, .key = 't', .label = "T",
           .unit = "milligrams", .read = rd_ok },
     };
     mock_reset();
-    ATC_INIT_ITEMS(long_unit, &mock_port);
-    EXPECT_CONTAINS(mock_buffer(), "WARN");
+    ATC_INIT_ITEMS(long_label_unit, &mock_port);
+    EXPECT_CONTAINS(mock_buffer(), "label");
     EXPECT_CONTAINS(mock_buffer(), "unit");
 
     /* Notes that exceed the inner width must warn (root table). */

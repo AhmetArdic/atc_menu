@@ -83,40 +83,31 @@ int main(void) {
     EXPECT_CONTAINS(out, "1.0.0");
 
     /* --- Long project, short version: project skipped, version stays.
-     * Strings are sized to exceed any reasonable layout.h tuning. --- */
-#define LONG_F \
-    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" \
-    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF" \
-    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-#define LONG_A \
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-#define LONG_B \
-    "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" \
-    "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" \
-    "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+     * LONG is sized to exceed any reasonable layout.h tuning. --- */
+#define LONG \
+    "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" \
+    "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" \
+    "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
     static const atc_menu_info_t long_project = {
-        .project = LONG_F,
+        .project = LONG,
         .version = "v9",
     };
     render_with_info(&long_project);
     out = mock_buffer();
     EXPECT(visible_line_len(out, 0) == g_box_width);
-    EXPECT_NOT_CONTAINS(out, LONG_F);
+    EXPECT_NOT_CONTAINS(out, LONG);
     EXPECT_CONTAINS(out, "v9");
 
     /* --- Both too long: both skipped, top edge is just dashes. --- */
     static const atc_menu_info_t both_long = {
-        .project = LONG_A,
-        .version = LONG_B,
+        .project = LONG,
+        .version = LONG,
     };
     render_with_info(&both_long);
     out = mock_buffer();
     EXPECT(visible_line_len(out, 0) == g_box_width);
-    EXPECT_NOT_CONTAINS(out, LONG_A);
-    EXPECT_NOT_CONTAINS(out, LONG_B);
+    EXPECT_NOT_CONTAINS(out, LONG);
 
     /* --- Project only (no version): no spurious dashes / junk on right. --- */
     static const atc_menu_info_t no_version = {
@@ -143,8 +134,8 @@ int main(void) {
     /* --- Long author + long build: clamped, box width preserved. --- */
     static const atc_menu_info_t long_meta = {
         .project = "X", .version = "1",
-        .author  = LONG_A,
-        .build   = LONG_B,
+        .author  = LONG,
+        .build   = LONG,
     };
     render_with_info(&long_meta);
     EXPECT(visible_line_len(mock_buffer(), 1) == g_box_width);

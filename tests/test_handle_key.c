@@ -20,6 +20,13 @@ static void rd_temp(char *b, size_t n, atc_status_t *st) {
 static void act_led(void) { led_actions++; }
 static void act_run(void) { run_actions++; }
 
+/* Renders the last submitted cmd line, so a repaint that runs after the
+ * cmd handler is visible in the TX capture. */
+static void rd_cmd_echo(char *b, size_t n, atc_status_t *st) {
+    snprintf(b, n, "[%s]", mock_last_cmd());
+    *st = ATC_ST_OK;
+}
+
 int main(void) {
     led_actions = 0;
     run_actions = 0;
@@ -100,6 +107,21 @@ int main(void) {
     atc_menu_handle_key('1');
     EXPECT(run_actions == 2);
 
+    /* Rows are refreshed after the cmd handler runs, so state the
+     * command changed shows up without a manual 'r'. */
+    static const atc_menu_item_t cmd_rows[] = {
+        { .type = ATC_ROW_VALUE, .key = 'v', .label = "Last cmd", .unit = "",
+          .read = rd_cmd_echo },
+    };
+    ATC_INIT_ITEMS(cmd_rows, &mock_port);
+    atc_menu_handle_key(':');
+    atc_menu_handle_key('7');
+    atc_menu_handle_key('7');
+    mock_reset(); /* keep only the Enter-triggered output (clears last cmd) */
+    atc_menu_handle_key('\n');
+    EXPECT_STREQ(mock_last_cmd(), "77");
+    EXPECT_CONTAINS(mock_buffer(), "[77]");
+
     /* ---------------- Sub-menu navigation ----------------- */
 
     static const atc_menu_item_t leaf[] = {
@@ -174,40 +196,25 @@ int main(void) {
     static const atc_menu_item_t lvl5[] = {
         { .type = ATC_ROW_GROUP, .label = "L5" },
     };
-    static const atc_menu_table_t lvl5_tbl = {
-        .items = lvl5, .count = sizeof lvl5 / sizeof lvl5[0],
-    };
+    static const atc_menu_table_t lvl5_tbl = { lvl5, 1 };
     static const atc_menu_item_t lvl4[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L5",
-          .submenu = &lvl5_tbl },
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L5", .submenu = &lvl5_tbl },
     };
-    static const atc_menu_table_t lvl4_tbl = {
-        .items = lvl4, .count = sizeof lvl4 / sizeof lvl4[0],
-    };
+    static const atc_menu_table_t lvl4_tbl = { lvl4, 1 };
     static const atc_menu_item_t lvl3[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L4",
-          .submenu = &lvl4_tbl },
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L4", .submenu = &lvl4_tbl },
     };
-    static const atc_menu_table_t lvl3_tbl = {
-        .items = lvl3, .count = sizeof lvl3 / sizeof lvl3[0],
-    };
+    static const atc_menu_table_t lvl3_tbl = { lvl3, 1 };
     static const atc_menu_item_t lvl2[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L3",
-          .submenu = &lvl3_tbl },
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L3", .submenu = &lvl3_tbl },
     };
-    static const atc_menu_table_t lvl2_tbl = {
-        .items = lvl2, .count = sizeof lvl2 / sizeof lvl2[0],
-    };
+    static const atc_menu_table_t lvl2_tbl = { lvl2, 1 };
     static const atc_menu_item_t lvl1[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L2",
-          .submenu = &lvl2_tbl },
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L2", .submenu = &lvl2_tbl },
     };
-    static const atc_menu_table_t lvl1_tbl = {
-        .items = lvl1, .count = sizeof lvl1 / sizeof lvl1[0],
-    };
+    static const atc_menu_table_t lvl1_tbl = { lvl1, 1 };
     static const atc_menu_item_t lvl0[] = {
-        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L1",
-          .submenu = &lvl1_tbl },
+        { .type = ATC_ROW_SUBMENU, .key = 'n', .label = "L1", .submenu = &lvl1_tbl },
     };
     ATC_INIT_ITEMS(lvl0, &mock_port);
     atc_menu_handle_key('n');   /* depth 1 */
