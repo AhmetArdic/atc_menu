@@ -188,23 +188,23 @@ static bool commit_threshold(const char *s) {
 
 ATC_MENU(imu_accel,
     ATC_GROUP(    "MPU9250 Accelerometer"),
-    ATC_VALUE(0, "Accel X", "g", rd_mpu_ax),
-    ATC_VALUE(0, "Accel Y", "g", rd_mpu_ay),
-    ATC_VALUE(0, "Accel Z", "g", rd_mpu_az),
+    ATC_VALUE("Accel X", "g", rd_mpu_ax),
+    ATC_VALUE("Accel Y", "g", rd_mpu_ay),
+    ATC_VALUE("Accel Z", "g", rd_mpu_az),
 );
 
 ATC_MENU(imu_gyro,
     ATC_GROUP(    "MPU9250 Gyroscope"),
-    ATC_VALUE(0, "Gyro X", "dps", rd_mpu_gx),
-    ATC_VALUE(0, "Gyro Y", "dps", rd_mpu_gy),
-    ATC_VALUE(0, "Gyro Z", "dps", rd_mpu_gz),
+    ATC_VALUE("Gyro X", "dps", rd_mpu_gx),
+    ATC_VALUE("Gyro Y", "dps", rd_mpu_gy),
+    ATC_VALUE("Gyro Z", "dps", rd_mpu_gz),
 );
 
 ATC_MENU(imu_mag,
     ATC_GROUP(    "MPU9250 Magnetometer"),
-    ATC_VALUE(0, "Mag X", "uT", rd_mpu_mx),
-    ATC_VALUE(0, "Mag Y", "uT", rd_mpu_my),
-    ATC_VALUE(0, "Mag Z", "uT", rd_mpu_mz),
+    ATC_VALUE("Mag X", "uT", rd_mpu_mx),
+    ATC_VALUE("Mag Y", "uT", rd_mpu_my),
+    ATC_VALUE("Mag Z", "uT", rd_mpu_mz),
 );
 
 ATC_MENU(imu,
@@ -218,9 +218,9 @@ ATC_MENU(imu,
 
 ATC_MENU(power,
     ATC_GROUP(    "INA219 Power"),
-    ATC_VALUE(0, "Bus V",   "V",  rd_ina_v),
-    ATC_VALUE(0, "Current", "mA", rd_ina_i),
-    ATC_VALUE(0, "Power",   "mW", rd_ina_p),
+    ATC_VALUE("Bus V",   "V",  rd_ina_v),
+    ATC_VALUE("Current", "mA", rd_ina_i),
+    ATC_VALUE("Power",   "mW", rd_ina_p),
     ATC_NOTE ("INA219 high-side current monitor, 0.1 ohm shunt."),
     ATC_NOTE ("':set load <mA>' to push WARN/ERR thresholds."),
 );
@@ -250,11 +250,11 @@ ATC_MENU(home,
     ATC_VALUE ('t', "MCU Temp", "C", rd_temp),
     ATC_VALUE ('v', "Battery",  "V", rd_vbat),
 
-    ATC_GROUP_REFRESH ('e', "BME280 Env"),
-    ATC_VALUE (0, "Temperature", "C",   rd_bme_t),
-    ATC_VALUE (0, "Humidity",    "%",   rd_bme_h),
-    ATC_VALUE (0, "Pressure",    "hPa", rd_bme_p),
-    ATC_VALUE (0, "Altitude",    "m",   rd_bme_a),
+    ATC_GROUP ('e', "BME280 Env"),
+    ATC_VALUE ("Temperature", "C",   rd_bme_t),
+    ATC_VALUE ("Humidity",    "%",   rd_bme_h),
+    ATC_VALUE ("Pressure",    "hPa", rd_bme_p),
+    ATC_VALUE ("Altitude",    "m",   rd_bme_a),
 
     ATC_GROUP (     "Drill into"),
     ATC_SUBMENU('i', "MPU9250 IMU",    &imu),

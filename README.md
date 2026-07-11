@@ -72,6 +72,7 @@ static void rd_temp(char *b, size_t n, atc_menu_status_t *st) {
 ATC_MENU(home,
     ATC_GROUP ("Sensors"),
     ATC_VALUE ('t', "Temp", "C", rd_temp),
+    ATC_VALUE (     "Vbat", "V", rd_vbat),   /* hotkey'siz: salt gösterim */
     ATC_STATE ('L', "LED",       rd_led, act_toggle_led),
     ATC_ACTION('1', "Self test", act_self_test),
     ATC_NOTE  ("Press hotkeys to interact."),
@@ -82,6 +83,12 @@ atc_menu_init(&home, &my_port, &info);
 
 Genişletilmiş etiket karşılığı:
 - `ATC_GROUP/VALUE/STATE/ACTION/SUBMENU/BAR/CHOICE/INPUT/NOTE`
+
+Tüm row makrolarında baştaki hotkey argümanı **opsiyoneldir** (arity ile
+seçilir, C99 variadic): `ATC_VALUE('t', "Temp", "C", rd)` hotkey'e bağlanır,
+`ATC_VALUE("Temp", "C", rd)` key sütunu boş basılır ve satır salt gösterim
+olur. `ATC_GROUP('e', "Env")` gibi keyli GROUP, grubun toplu refresh'ini
+tetikler.
 
 Submenu'ler `&other_menu` ile bağlanır; alt tablo, ona referans veren satırdan
 **önce** tanımlanmalıdır (C derleme sırası).
