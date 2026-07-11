@@ -54,7 +54,6 @@
 #endif
 
 #include "atc_menu/atc_menu.h"
-#include "atc_menu/atc_menu_macros.h"
 #include "sensor_helpers.h"
 #include "sensor_sim.h"
 

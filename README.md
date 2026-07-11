@@ -18,11 +18,9 @@ oturur, RAM tüketmez.
 
 ```
 include/atc_menu/atc_menu.h         public API (tipler + lifecycle)
-include/atc_menu/atc_menu_macros.h  compile-time macro layer
-src/menu.c                          lifecycle + modal state (cmd/input/choice)
-src/render.c                        row primitives + chrome render
-src/nav.c                           sub-menü nav stack
-src/{ansi,layout,symbols}.h         ANSI / kolon genişlikleri / UTF-8 glyph'ler
+include/atc_menu/atc_menu_macros.h  compile-time macro layer (atc_menu.h otomatik dahil eder)
+src/atc_menu.c                      çekirdek: lifecycle, render, nav, modal state
+src/layout.h                        kolon genişlikleri (CMake -D ile override)
 ports/mock/                         test için TX + cmd capture portu
 tests/                              CTest unit testleri
 examples/demo.c                     Serial demo
@@ -65,7 +63,7 @@ cmake -S . -B build -DLABEL_W=32 -DVALUE_W=20 -DUNIT_W=8 -DNAV_DEPTH=8
 ## Menü tanımı
 
 ```c
-#include "atc_menu/atc_menu_macros.h"
+#include "atc_menu/atc_menu.h"
 
 static void rd_temp(char *b, size_t n, atc_status_t *st) {
     snprintf(b, n, "%d", read_temp_c()); *st = ATC_ST_OK;
@@ -140,7 +138,7 @@ collides with built-in ...`):
 | `?` | tam path'i status'a yaz          |
 | `:` | komut modu (port.cmd ayarlı ise) |
 
-`src/internal.h` içinde `KEY_REFRESH`, `KEY_BACK`, `KEY_PATH`, `KEY_CMD`
+`src/atc_menu.c` içinde `KEY_REFRESH`, `KEY_BACK`, `KEY_PATH`, `KEY_CMD`
 define'larıyla tanımlı.
 
 ## Serial demo

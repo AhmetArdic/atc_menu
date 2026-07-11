@@ -247,4 +247,13 @@ void atc_menu_status(const char *msg);
 }
 #endif
 
+/*
+ * Declaration macros (ATC_MENU, ATC_GROUP, ATC_VALUE, ...) ship with the
+ * public API.  Define ATC_MENU_NO_MACROS before including this header to
+ * opt out, e.g. to avoid name clashes.
+ */
+#ifndef ATC_MENU_NO_MACROS
+#include "atc_menu/atc_menu_macros.h"
+#endif
+
 #endif /* ATC_MENU_H */
