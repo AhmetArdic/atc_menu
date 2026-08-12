@@ -8,7 +8,7 @@
  * output path: the menu goes out of a serial port to a terminal that knows
  * nothing about this process, which is the only arrangement the library is
  * for. The console this is started from stays free and reports the byte cost
- * of every update.
+ * of every update, and so does the last row of every page.
  *
  *   menu_demo /dev/ttyUSB0 115200
  *
@@ -82,6 +82,29 @@ static const char *const P4_OUT[4] = { "P4.0 Ch1 Sel", "P4.1 Ch2 Sel",
 static const char *const P4_IN[4] = { "P4.4 Overrange", "P4.5 Zero Det",
                                       "P4.6 Ref OK", "P4.7 Cal Done" };
 
+/* ---- what the menu costs on the wire ------------------------------------ */
+
+/* A row that counted its own repaint would feed itself and never reach 0, so
+   what it spends on itself — its bytes, and the cursor restore frame_end pairs
+   with them — comes back out of the figure. */
+static size_t   tx_total;
+static size_t   tx_self;
+static uint32_t tx_last;
+static unsigned tx_hold;
+
+enum { TX_HOLD_PASSES = 50u,    /* ~1 s: a live figure is gone before it reads */
+       TX_CURSOR_RESTORE = 2u };
+
+static void tx_footer(atc_menu_ctx_t *c)
+{
+    size_t before = tx_total;
+
+    atc_menu_separator(c);
+    atc_menu_uint32_ro(c, "TX last (B)", tx_last);
+    if (tx_total != before)
+        tx_self += tx_total - before + TX_CURSOR_RESTORE;
+}
+
 /* ---- pages -------------------------------------------------------------- */
 
 static void pin_group(atc_menu_ctx_t *c, unsigned port, const char *out_head,
@@ -141,6 +164,8 @@ static void page_io(atc_menu_ctx_t *c)
     atc_menu_separator(c);
     if (atc_menu_action(c, "Clear outputs"))
         memset(p_out, 0, sizeof p_out);
+
+    tx_footer(c);
 }
 
 static void sample(atc_menu_ctx_t *c)
@@ -204,6 +229,8 @@ static void page_sensors(atc_menu_ctx_t *c)
         hum_zero = 0;
         atc_menu_message(c, "Calibrated");
     }
+
+    tx_footer(c);
 }
 
 static void page_pwm(atc_menu_ctx_t *c)
@@ -237,6 +264,8 @@ static void page_pwm(atc_menu_ctx_t *c)
         }
     }
     atc_menu_uint16_ro(c, "TA0CCR0", ta0ccr0);
+
+    tx_footer(c);
 }
 
 static void page_registers(atc_menu_ctx_t *c)
@@ -246,6 +275,8 @@ static void page_registers(atc_menu_ctx_t *c)
     atc_menu_hex16(c, "UCA0BRW", &uca0brw);
     atc_menu_uint32_ro(c, "Uptime", sys_ticks);
     atc_menu_hex32_ro(c, "Uptime (hex)", sys_ticks);
+
+    tx_footer(c);
 }
 
 static void page_main(atc_menu_ctx_t *c)
@@ -285,6 +316,8 @@ static void page_main(atc_menu_ctx_t *c)
     atc_menu_separator(c);
     if (atc_menu_action(c, "Exit"))
         running = 0;
+
+    tx_footer(c);
 }
 
 /* ---- host plumbing ------------------------------------------------------ */
@@ -292,8 +325,6 @@ static void page_main(atc_menu_ctx_t *c)
 /* The menu goes out of the serial port, so the console it was started from is
    free to report what each update cost: a full page against a single changed
    row is visible there. */
-static size_t tx_total;
-
 static int counting_serial_sink(const char *buf, size_t len, void *user)
 {
     if (!atc_menu_port_serial_sink(buf, len, user))
@@ -338,7 +369,10 @@ int main(int argc, char **argv)
 
     while (running) {
         size_t tx_before = tx_total;
+        size_t cost;
         int    ch;
+
+        tx_self = 0u;
 
         /* Two frames: a key that opens a submenu takes effect at frame_end, and
            an idle frame costs nothing, so the new level shows straight away. */
@@ -348,6 +382,14 @@ int main(int argc, char **argv)
         atc_menu_frame_begin(&c);
         page_main(&c);
         atc_menu_frame_end(&c);
+
+        cost = (tx_total - tx_before) - tx_self;
+        if (cost != 0u) {
+            tx_last = (uint32_t)cost;
+            tx_hold = TX_HOLD_PASSES;
+        } else if (tx_hold != 0u && --tx_hold == 0u) {
+            tx_last = 0u;
+        }
 
         if (tx_total != tx_before) {
             printf("TX %4u B  (total %u B)\n",
