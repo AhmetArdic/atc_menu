@@ -8,9 +8,11 @@
  * offset turn that into a row here, so nothing above this layer has to know how
  * tall the chrome came out this frame.
  *
- * A row is built whole, hashed, and sent only if the hash differs from what
- * that row last held — which is what keeps a 9600-baud link quiet between
- * keystrokes.
+ * An item row is signed by what the frame declared for it and built only if
+ * that differs from what the row already holds, so an idle frame lays out
+ * nothing; the chrome, whose inputs are scattered, still signs the bytes it
+ * built. Either way a row goes out only when it changed, which is what keeps a
+ * 9600-baud link quiet between keystrokes.
  */
 #include "menu_internal.h"
 
@@ -32,13 +34,14 @@
  * The line cache
  *-------------------------------------------------------------------------*/
 
-/* Fletcher-16, and no multiply in it: this runs over every byte of every row,
+/* Fletcher-16, and no multiply in it: this runs over every byte it is given,
    and an MSP430 without a hardware multiplier pays a software routine for each
-   one. The fold is the mod-255 reduction written without a branch. */
-static uint16_t sig_row(const char *s, size_t n)
+   one. The fold is the mod-255 reduction written without a branch, and the two
+   sums pack back into the 16 bits this returns, so a signature can be carried
+   across several pieces without a scratch buffer. */
+static uint16_t sig_more(uint16_t sig, const char *s, size_t n)
 {
-    uint16_t a = 0xFFu, b = 0xFFu;
-    uint16_t r;
+    uint16_t a = (uint16_t)(sig & 0xFFu), b = (uint16_t)(sig >> 8);
     size_t   i;
 
     for (i = 0u; i < n; ++i) {
@@ -47,8 +50,42 @@ static uint16_t sig_row(const char *s, size_t n)
         b = (uint16_t)(b + a);
         b = (uint16_t)((b & 0xFFu) + (b >> 8));
     }
-    r = (uint16_t)((b << 8) | a);
-    return (r == 0u) ? 1u : r; /* 0 means "never painted" */
+    return (uint16_t)((b << 8) | a);
+}
+
+static uint16_t sig_end(uint16_t sig)
+{
+    return (sig == 0u) ? 1u : sig; /* 0 means "never painted" */
+}
+
+static uint16_t sig_row(const char *s, size_t n)
+{
+    return sig_end(sig_more(0xFFFFu, s, n));
+}
+
+/* An item row is a function of what the frame declared for it — cols is fixed
+   for the life of the context and the slot is the row itself — so signing the
+   inputs recognises an unchanged row without building it. That is the whole
+   cost of an idle frame: a page of 50 rows signs a few hundred bytes instead
+   of laying out and hashing five kilobytes. */
+static uint16_t item_key(unsigned item_i, unsigned number, const char *label,
+                         const char *value, bool dim, unsigned style)
+{
+    char     h[5];
+    uint16_t k;
+
+    h[0] = (char)number;
+    h[1] = (char)(dim ? 1u : 0u);
+    h[2] = (char)style;
+    h[3] = (char)(item_i & 1u);           /* the stripe */
+    h[4] = (char)((value != NULL) ? 1u : 0u); /* a value column at all */
+    k = sig_more(0xFFFFu, h, sizeof h);
+    if (label != NULL)
+        k = sig_more(k, label, strlen(label));
+    k = sig_more(k, "\x1f", 1u);          /* keeps label and value apart */
+    if (value != NULL)
+        k = sig_more(k, value, strlen(value));
+    return sig_end(k);
 }
 
 static bool save_cursor(atc_menu_ctx_t *c)
@@ -96,9 +133,11 @@ static void line_begin(atc_menu_ctx_t *c, buf_t *b, unsigned row,
 }
 
 /* pad_to > 0 fills out to that column before closing; a striped row needs it so
-   the background stops at the menu edge rather than the terminal's. */
+   the background stops at the menu edge rather than the terminal's. A caller
+   that already signed the row's inputs passes that key rather than 0, and the
+   bytes are not hashed a second time. */
 static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
-                     size_t pad_to)
+                     size_t pad_to, uint16_t key)
 {
     uint16_t sig;
 
@@ -121,7 +160,7 @@ static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
         return;
     }
 
-    sig = sig_row(b->p + b->sig, b->len - b->sig);
+    sig = (key != 0u) ? key : sig_row(b->p + b->sig, b->len - b->sig);
     if (c->row_sig[row - 1u] == sig)
         return;
     if (!save_cursor(c))
@@ -256,6 +295,7 @@ void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
     size_t   lw = label_width(c);
     size_t   used = 0u;
     size_t   vlen = (value != NULL) ? strlen(value) : 0u;
+    uint16_t key;
     bool     striped;
 
     if (!row_ok(c, row))
@@ -263,6 +303,10 @@ void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
 
     if (dim)
         style = 0u; /* "not available now" outranks decoration */
+
+    key = item_key(item_i, number, label, value, dim, style);
+    if (c->row_sig[row - 1u] == key)
+        return; /* nothing this row is made of has moved */
 
     striped = (item_i & 1u) == 0u;
     line_begin(c, &b, row, striped ? SGR_ZEBRA : "");
@@ -316,7 +360,7 @@ void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
             bput(&b, value[i]);
     }
 
-    line_end(c, &b, row, true, striped ? (size_t)c->cols : 0u);
+    line_end(c, &b, row, true, striped ? (size_t)c->cols : 0u, key);
 }
 
 /* A rule inside the item area. It takes its stripe from the same alternation
@@ -325,16 +369,25 @@ void row_separator(atc_menu_ctx_t *c, unsigned item_i)
 {
     unsigned row = item_row(c, item_i);
     bool     striped = (item_i & 1u) == 0u;
+    char     h[2];
+    uint16_t key;
     buf_t    b;
 
     if (!row_ok(c, row))
         return;
+
+    h[0] = (char)(item_i & 1u);
+    h[1] = '-'; /* a rule, so it cannot key like an item row */
+    key = sig_row(h, sizeof h);
+    if (c->row_sig[row - 1u] == key)
+        return;
+
     line_begin(c, &b, row, striped ? SGR_ZEBRA : "");
     bsgr(&b, SGR_HEAD);
     bpad(&b, 3u);
     while (b.vis < (size_t)c->cols - 2u)
         bput(&b, '-');
-    line_end(c, &b, row, true, striped ? (size_t)c->cols : 0u);
+    line_end(c, &b, row, true, striped ? (size_t)c->cols : 0u, key);
 }
 
 /*---------------------------------------------------------------------------
@@ -418,7 +471,7 @@ static void paint_footer(atc_menu_ctx_t *c, unsigned pages)
         bsgr(&b, SGR_HINT);
         bstr(&b, TXT[k]);
     }
-    line_end(c, &b, footer_row(c), true, 0u);
+    line_end(c, &b, footer_row(c), true, 0u, 0u);
 }
 
 void paint_chrome(atc_menu_ctx_t *c)
@@ -450,7 +503,7 @@ void paint_chrome(atc_menu_ctx_t *c)
                 bsgr(&b, SGR_VER);
                 bclip(&b, c->info->version, (size_t)c->cols);
             }
-            line_end(c, &b, row, true, 0u);
+            line_end(c, &b, row, true, 0u, 0u);
         }
         row++;
     }
@@ -459,7 +512,7 @@ void paint_chrome(atc_menu_ctx_t *c)
         if (row_ok(c, row)) {
             line_begin(c, &b, row, SGR_OWNER);
             bclip(&b, c->info->owner, (size_t)c->cols);
-            line_end(c, &b, row, true, 0u);
+            line_end(c, &b, row, true, 0u, 0u);
         }
         row++;
     }
@@ -468,7 +521,7 @@ void paint_chrome(atc_menu_ctx_t *c)
         line_begin(c, &b, row, SGR_HEAD);
         while (b.vis < (size_t)c->cols)
             bput(&b, '=');
-        line_end(c, &b, row, true, 0u);
+        line_end(c, &b, row, true, 0u, 0u);
     }
     row++;
 
@@ -490,14 +543,14 @@ void paint_chrome(atc_menu_ctx_t *c)
             bu32(&b, pages);
             bput(&b, ')');
         }
-        line_end(c, &b, row, true, 0u);
+        line_end(c, &b, row, true, 0u, 0u);
     }
 
     if (row_ok(c, rule_row(c))) {
         line_begin(c, &b, rule_row(c), SGR_HEAD);
         while (b.vis < (size_t)c->cols)
             bput(&b, '-');
-        line_end(c, &b, rule_row(c), true, 0u);
+        line_end(c, &b, rule_row(c), true, 0u, 0u);
     }
 
     if (row_ok(c, footer_row(c)))
@@ -507,7 +560,7 @@ void paint_chrome(atc_menu_ctx_t *c)
         line_begin(c, &b, msg_row(c), SGR_HINT);
         if (c->msg != NULL)
             bclip(&b, c->msg, (size_t)c->cols);
-        line_end(c, &b, msg_row(c), true, 0u);
+        line_end(c, &b, msg_row(c), true, 0u, 0u);
     }
 
     if (row_ok(c, prompt_row(c))) {
@@ -528,7 +581,7 @@ void paint_chrome(atc_menu_ctx_t *c)
                 bu32(&b, c->pending);
         }
         bput(&b, '_');
-        line_end(c, &b, prompt_row(c), true, 0u);
+        line_end(c, &b, prompt_row(c), true, 0u, 0u);
     }
 }
 
@@ -542,6 +595,6 @@ void blank_tail(atc_menu_ctx_t *c)
         if (!row_ok(c, r))
             break;
         line_begin(c, &b, r, "");
-        line_end(c, &b, r, false, 0u);
+        line_end(c, &b, r, false, 0u, 0u);
     }
 }

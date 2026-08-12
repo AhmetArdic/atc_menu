@@ -53,12 +53,20 @@ if the buffers are not static; the fields are the same four.
 
 `row_sig` is the diff: a 16-bit signature per row — Fletcher-16, with no
 multiply in it, since a target without a hardware multiplier would pay for one
-on every byte of every row. It is compared before anything goes out, which is
-why an idle frame sends nothing and one changed row costs 128 bytes instead of a
-page — 48 bytes of RAM for a 24-row menu, and the reason for every byte figure
-below. Free on the wire is not free in the CPU: the frame still builds and
-signs every visible row, so a menu that redraws in a tight loop is paying for
-frames nobody asked for. Draw when a key arrives or a value moves.
+on every byte it signs. An item row is signed by **what the frame declared for
+it** — label, value, number, style, whether it is dim, which stripe it wears —
+rather than by the bytes it would come out as. The two are equivalent, since the
+row is a function of exactly those inputs, but signing the inputs is what lets
+an unchanged row be recognised without laying it out: a 50-row page signs a few
+hundred bytes on an idle frame instead of building and hashing five kilobytes.
+The chrome, whose inputs are scattered across the context, still signs the bytes
+it built.
+
+That is why an idle frame sends nothing and one changed row costs 128 bytes
+instead of a page — 48 bytes of RAM for a 24-row menu, and the reason for every
+byte figure below. Cheap is still not free: a frame signs every visible row
+whatever happens, so draw when a key arrives or a value moves, not in a tight
+loop.
 
 The menu paints rows 1..`rows` from the top-left and never touches anything
 below; a taller terminal simply leaves room, which is where an application puts
