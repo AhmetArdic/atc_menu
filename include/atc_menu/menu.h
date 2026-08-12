@@ -188,6 +188,7 @@ typedef struct {
        colour it like the column it came from. */
     unsigned char edit_item, edit_base, edit_dec, edit_frac, edit_len;
     unsigned char edit_head, edit_vpos;
+    uint16_t      chrome_sig; /* what the chrome was last painted from */
     uint16_t      flags;
     signed char   status;
     /* atc_menu_item_style()'s, for the next item. Last on purpose: here it

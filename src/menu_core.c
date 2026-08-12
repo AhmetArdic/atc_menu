@@ -70,8 +70,10 @@ unsigned atc_menu_items_per_page(const atc_menu_ctx_t *c)
 
 void atc_menu_refresh(atc_menu_ctx_t *c)
 {
-    if (c != NULL)
+    if (c != NULL) {
         memset(c->row_sig, 0, (size_t)c->rows * sizeof *c->row_sig);
+        c->chrome_sig = 0u;
+    }
 }
 
 /*---------------------------------------------------------------------------
@@ -209,8 +211,22 @@ atc_menu_status_t atc_menu_frame_end(atc_menu_ctx_t *c)
         shown = c->page_items;
     c->shown_items = (unsigned char)shown; /* where the closing rule goes */
 
-    paint_chrome(c);
-    blank_tail(c);
+    /* One signature over what the chrome is drawn from: unchanged, none of its
+       seven rows is laid out. */
+    if ((c->flags & F_EDIT) != 0u) {
+        c->chrome_sig = 0u; /* the prompt moves with every keystroke */
+        paint_chrome(c);
+        blank_tail(c);
+    } else {
+        uint16_t k = chrome_key(c);
+
+        if (k != c->chrome_sig) {
+            paint_chrome(c);
+            blank_tail(c);
+            if ((c->flags & F_STOP) == 0u)
+                c->chrome_sig = k; /* a refused row stays dirty */
+        }
+    }
 
     /* The rows above were laid out with the old page size, so the new one takes
        effect from the next frame — the deferral submenu entry uses below. */

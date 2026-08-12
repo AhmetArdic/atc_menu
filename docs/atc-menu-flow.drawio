@@ -604,7 +604,7 @@
             <mxGeometry height="39" width="270" x="526" y="1913" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="sig = Fletcher-16&#xa;&lt;i&gt;item satırı: girdiler&#xa;chrome: kurulan baytlar&lt;/i&gt;" mermaidId="n:E8" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="sig = Fletcher-16&#xa;&lt;i&gt;item satırı: girdiler&#xa;chrome: kurulan baytlar&lt;/i&gt;" id="54">
+        <UserObject label="sig = Fletcher-16&#xa;&lt;i&gt;satırın girdileri üzerinden&lt;/i&gt;" mermaidId="n:E8" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="sig = Fletcher-16&#xa;&lt;i&gt;satırın girdileri üzerinden&lt;/i&gt;" id="54">
           <mxCell parent="43" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="75" width="201" x="275" y="1905" as="geometry" />
           </mxCell>
@@ -614,7 +614,7 @@
             <mxGeometry height="200" width="200" x="275" y="2009" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="hiçbir bayt gitmez&#xa;&lt;b&gt;boşta frame hatta bedava&lt;/b&gt;&#xa;&lt;i&gt;CPU&#39;da değil: satırlar yine kurulur ve hash&#39;lenir&lt;/i&gt;" mermaidId="n:E9x" mermaidBaseStyle="html=1;rounded=1;whiteSpace=wrap;arcSize=50;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#12300f;fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="hiçbir bayt gitmez&#xa;&lt;b&gt;boşta frame hatta bedava&lt;/b&gt;&#xa;&lt;i&gt;CPU&#39;da değil: satırlar yine kurulur ve hash&#39;lenir&lt;/i&gt;" id="56">
+        <UserObject label="hiçbir bayt gitmez&#xa;&lt;b&gt;boşta frame satır kurmaz&lt;/b&gt;&#xa;&lt;i&gt;kalan iş: satır başına bir imza&lt;/i&gt;" mermaidId="n:E9x" mermaidBaseStyle="html=1;rounded=1;whiteSpace=wrap;arcSize=50;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#12300f;fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="hiçbir bayt gitmez&#xa;&lt;b&gt;boşta frame satır kurmaz&lt;/b&gt;&#xa;&lt;i&gt;kalan iş: satır başına bir imza&lt;/i&gt;" id="56">
           <mxCell parent="43" style="html=1;rounded=1;whiteSpace=wrap;arcSize=50;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#12300f;fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="92" width="280" x="461" y="2279" as="geometry" />
           </mxCell>
@@ -788,7 +788,7 @@
             <mxGeometry height="73" width="334" x="407" y="291" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="&lt;b&gt;paint_chrome&lt;/b&gt;&#xa;banner · kural · breadcrumb · kapanış kuralı&#xa;footer · mesaj · prompt" mermaidId="n:F4" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="&lt;b&gt;paint_chrome&lt;/b&gt;&#xa;banner · kural · breadcrumb · kapanış kuralı&#xa;footer · mesaj · prompt" id="65">
+        <UserObject label="&lt;b&gt;paint_chrome&lt;/b&gt;&#xa;banner · kural · breadcrumb · kapanış kuralı&#xa;footer · mesaj · prompt&#xa;&lt;i&gt;imzası değişmediyse atlanır&lt;/i&gt;" mermaidId="n:F4" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="&lt;b&gt;paint_chrome&lt;/b&gt;&#xa;banner · kural · breadcrumb · kapanış kuralı&#xa;footer · mesaj · prompt&#xa;&lt;i&gt;imzası değişmediyse atlanır&lt;/i&gt;" id="65">
           <mxCell parent="61" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="93" width="372" x="40" y="414" as="geometry" />
           </mxCell>

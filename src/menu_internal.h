@@ -168,9 +168,16 @@ static inline uint32_t magnitude(int32_t v)
 
 unsigned page_items_max(const atc_menu_ctx_t *c);
 
+uint16_t sig_text(const char *s, size_t max);
+uint16_t sig_text_bytes(const char *s, size_t n);
+uint16_t item_key(const atc_menu_ctx_t *c, unsigned item_i, unsigned number,
+                  const char *label, uint16_t vkey, bool dim, unsigned style);
+bool row_needs(const atc_menu_ctx_t *c, unsigned item_i, uint16_t key);
 void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
-              const char *label, const char *value, bool dim, unsigned style);
+              const char *label, const char *value, bool dim, unsigned style,
+              uint16_t key);
 void row_separator(atc_menu_ctx_t *c, unsigned item_i);
+uint16_t chrome_key(const atc_menu_ctx_t *c);
 void paint_chrome(atc_menu_ctx_t *c);
 void blank_tail(atc_menu_ctx_t *c);
 void restore_cursor(atc_menu_ctx_t *c);

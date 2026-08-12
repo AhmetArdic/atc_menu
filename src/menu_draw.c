@@ -8,11 +8,10 @@
  * offset turn that into a row here, so nothing above this layer has to know how
  * tall the chrome came out this frame.
  *
- * An item row is signed by what the frame declared for it and built only if
- * that differs from what the row already holds, so an idle frame lays out
- * nothing; the chrome, whose inputs are scattered, still signs the bytes it
- * built. Either way a row goes out only when it changed, which is what keeps a
- * 9600-baud link quiet between keystrokes.
+ * A row is signed by what it is drawn from rather than by the bytes it would
+ * come out as, and built only if that moved — so an idle frame lays out
+ * nothing, an unchanged value is never formatted, and a row goes out only when
+ * it changed, which is what keeps a 9600-baud link quiet between keystrokes.
  */
 #include "menu_internal.h"
 
@@ -34,11 +33,9 @@
  * The line cache
  *-------------------------------------------------------------------------*/
 
-/* Fletcher-16, and no multiply in it: this runs over every byte it is given,
-   and an MSP430 without a hardware multiplier pays a software routine for each
-   one. The fold is the mod-255 reduction written without a branch, and the two
-   sums pack back into the 16 bits this returns, so a signature can be carried
-   across several pieces without a scratch buffer. */
+/* Fletcher-16, no multiply: an MSP430 without a hardware multiplier would pay
+   a software routine per byte. The two sums pack back into the 16 bits this
+   returns, so one signature can be carried across several pieces. */
 static uint16_t sig_more(uint16_t sig, const char *s, size_t n)
 {
     uint16_t a = (uint16_t)(sig & 0xFFu), b = (uint16_t)(sig >> 8);
@@ -63,28 +60,95 @@ static uint16_t sig_row(const char *s, size_t n)
     return sig_end(sig_more(0xFFFFu, s, n));
 }
 
-/* An item row is a function of what the frame declared for it — cols is fixed
-   for the life of the context and the slot is the row itself — so signing the
-   inputs recognises an unchanged row without building it. That is the whole
-   cost of an idle frame: a page of 50 rows signs a few hundred bytes instead
-   of laying out and hashing five kilobytes. */
-static uint16_t item_key(unsigned item_i, unsigned number, const char *label,
-                         const char *value, bool dim, unsigned style)
+/* Only for pointers the library compares rather than reads: a caller's string
+   is signed by its bytes, since labels get built into scratch buffers. */
+static uint16_t sig_ptr(uint16_t sig, const void *p)
 {
-    char     h[5];
+    const void *q = p;
+
+    return sig_more(sig, (const char *)&q, sizeof q);
+}
+
+/* Nothing past the column a string is clipped to can change the row. */
+static size_t clip_len(const char *s, size_t max)
+{
+    size_t n = 0u;
+
+    while (n < max && s[n] != '\0')
+        n++;
+    return n;
+}
+
+static uint16_t sig_text_more(uint16_t sig, const char *s, size_t max)
+{
+    return (s == NULL) ? sig_more(sig, "\x00", 1u)
+                       : sig_more(sig, s, clip_len(s, max));
+}
+
+uint16_t sig_text_bytes(const char *s, size_t n)
+{
+    return sig_end(sig_more(0xFFFFu, s, n));
+}
+
+uint16_t sig_text(const char *s, size_t max)
+{
+    return (s == NULL) ? 0u : sig_end(sig_more(0xFFFFu, s, clip_len(s, max)));
+}
+
+static size_t label_width(const atc_menu_ctx_t *c)
+{
+    return (size_t)c->cols - NUMW - VALW;
+}
+
+/* An item row is a function of what the frame declared for it, so signing the
+   inputs recognises an unchanged row without building it. */
+uint16_t item_key(const atc_menu_ctx_t *c, unsigned item_i, unsigned number,
+                  const char *label, uint16_t vkey, bool dim, unsigned style)
+{
+    char     h[7];
     uint16_t k;
+
+    if (dim)
+        style = 0u; /* the row is drawn that way, so it keys that way */
 
     h[0] = (char)number;
     h[1] = (char)(dim ? 1u : 0u);
     h[2] = (char)style;
-    h[3] = (char)(item_i & 1u);           /* the stripe */
-    h[4] = (char)((value != NULL) ? 1u : 0u); /* a value column at all */
+    h[3] = (char)(item_i & 1u);        /* the stripe */
+    h[4] = (char)(vkey & 0xFFu);
+    h[5] = (char)(vkey >> 8);
+    h[6] = '\x1f';
     k = sig_more(0xFFFFu, h, sizeof h);
     if (label != NULL)
-        k = sig_more(k, label, strlen(label));
-    k = sig_more(k, "\x1f", 1u);          /* keeps label and value apart */
-    if (value != NULL)
-        k = sig_more(k, value, strlen(value));
+        k = sig_more(k, label, clip_len(label, label_width(c)));
+    return sig_end(k);
+}
+
+/* Everything the chrome is drawn from. An open editor is the exception: its
+   prompt moves with every keystroke, so frame_end never caches it. */
+uint16_t chrome_key(const atc_menu_ctx_t *c)
+{
+    char     h[7];
+    uint16_t k;
+    unsigned d;
+
+    h[0] = (char)c->level_items;
+    h[1] = (char)c->page_items;
+    h[2] = (char)c->top[c->nav_depth];
+    h[3] = (char)c->nav_depth;
+    h[4] = (char)c->shown_items;
+    h[5] = (char)c->pending;
+    h[6] = (char)c->rows;
+    k = sig_more(0xFFFFu, h, sizeof h);
+    k = sig_ptr(k, c->info);
+    if (c->info != NULL) {
+        k = sig_text_more(k, c->info->name, c->cols);
+        k = sig_text_more(k, c->info->version, c->cols);
+        k = sig_text_more(k, c->info->owner, c->cols);
+    }
+    for (d = 0u; d < c->nav_depth; ++d)
+        k = sig_text_more(k, c->crumb[d], c->cols);
+    k = sig_text_more(k, c->msg, c->cols);
     return sig_end(k);
 }
 
@@ -134,8 +198,7 @@ static void line_begin(atc_menu_ctx_t *c, buf_t *b, unsigned row,
 
 /* pad_to > 0 fills out to that column before closing; a striped row needs it so
    the background stops at the menu edge rather than the terminal's. A caller
-   that already signed the row's inputs passes that key rather than 0, and the
-   bytes are not hashed a second time. */
+   that signed the row's inputs passes that key instead of 0. */
 static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
                      size_t pad_to, uint16_t key)
 {
@@ -225,11 +288,6 @@ static bool row_ok(const atc_menu_ctx_t *c, unsigned row)
     return (c->flags & F_STOP) == 0u && row >= 1u && row <= c->rows;
 }
 
-static size_t label_width(const atc_menu_ctx_t *c)
-{
-    return (size_t)c->cols - NUMW - VALW;
-}
-
 /*---------------------------------------------------------------------------
  * Item rows
  *-------------------------------------------------------------------------*/
@@ -287,15 +345,23 @@ static void bvalue_sgr(buf_t *b, unsigned style)
     b->vis = vis;
 }
 
+/* Asked before a value is formatted, which is the point of asking. */
+bool row_needs(const atc_menu_ctx_t *c, unsigned item_i, uint16_t key)
+{
+    unsigned row = item_row(c, item_i);
+
+    return row_ok(c, row) && c->row_sig[row - 1u] != key;
+}
+
 void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
-              const char *label, const char *value, bool dim, unsigned style)
+              const char *label, const char *value, bool dim, unsigned style,
+              uint16_t key)
 {
     buf_t    b;
     unsigned row = item_row(c, item_i);
     size_t   lw = label_width(c);
     size_t   used = 0u;
-    size_t   vlen = (value != NULL) ? strlen(value) : 0u;
-    uint16_t key;
+    size_t   vlen = (value != NULL) ? clip_len(value, VALW) : 0u;
     bool     striped;
 
     if (!row_ok(c, row))
@@ -303,10 +369,6 @@ void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
 
     if (dim)
         style = 0u; /* "not available now" outranks decoration */
-
-    key = item_key(item_i, number, label, value, dim, style);
-    if (c->row_sig[row - 1u] == key)
-        return; /* nothing this row is made of has moved */
 
     striped = (item_i & 1u) == 0u;
     line_begin(c, &b, row, striped ? SGR_ZEBRA : "");

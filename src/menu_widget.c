@@ -61,44 +61,76 @@ static bool on_page(const atc_menu_ctx_t *c, unsigned item_i)
     return item_i >= top && item_i < top + c->page_items;
 }
 
-/* Numbers are handed out per page and start again at 1 on the next one, so a
-   page never holds more of them than it has rows — which is what keeps one
-   keystroke enough. Decoration takes a row and no number. */
+/* A declared row in two halves: slot_take reserves it and says whether
+   anything moved, and only a row that has to be built gets its value turned
+   into text. Numbers are handed out per page and start again at 1 on the next
+   one, so a page never holds more of them than it has rows. */
+typedef struct {
+    unsigned item_i;
+    unsigned num;   /* 0 when off the page, or when the row takes no number */
+    unsigned style;
+    uint16_t key;
+    bool     dim;
+    bool     draw;  /* the row has to be built */
+} slot_t;
+
+static void slot_take(atc_menu_ctx_t *c, slot_t *s, const char *label,
+                      uint16_t vkey, bool numbered)
+{
+    s->item_i = next_index(c);
+    s->num = 0u;
+    s->dim = take_disable(c);
+    s->style = take_style(c);
+    s->key = 0u;
+    s->draw = false;
+
+    if (!at_active(c))
+        return;
+
+    if (s->item_i + 1u > c->level_items)
+        c->level_items = (unsigned char)(s->item_i + 1u);
+
+    if (!on_page(c, s->item_i))
+        return;
+
+    if (numbered) {
+        c->level_numbered = (unsigned char)(c->level_numbered + 1u);
+        s->num = c->level_numbered;
+    }
+    s->key = item_key(c, s->item_i, s->num, label, vkey, s->dim, s->style);
+    s->draw = row_needs(c, s->item_i, s->key);
+}
+
+static void slot_paint(atc_menu_ctx_t *c, const slot_t *s, const char *label,
+                       const char *value)
+{
+    row_item(c, s->item_i, s->num, label, value, s->dim, s->style, s->key);
+}
+
+/* An unpickable row says why rather than swallowing the key. */
+static bool slot_hit(atc_menu_ctx_t *c, const slot_t *s, bool selectable)
+{
+    if (s->dim)
+        selectable = false;
+    if (s->num != 0u && c->act == s->num && !selectable) {
+        c->msg = s->dim ? "not available now" : "read-only";
+        return false;
+    }
+    return selectable && s->num != 0u && c->act == s->num;
+}
+
+/* The form for a row whose value is already text. */
 static bool item_slot(atc_menu_ctx_t *c, const char *label, const char *value,
                       bool numbered, bool selectable, unsigned *out_num)
 {
-    unsigned item_i = next_index(c);
-    unsigned num = 0u;
-    bool     dim = take_disable(c);
-    unsigned style = take_style(c);
-    bool     visible;
+    slot_t s;
 
-    if (!at_active(c))
-        return false;
-
-    if (dim)
-        selectable = false;
-
-    if (item_i + 1u > c->level_items)
-        c->level_items = (unsigned char)(item_i + 1u);
-
-    visible = on_page(c, item_i);
-
-    if (numbered && visible) {
-        c->level_numbered = (unsigned char)(c->level_numbered + 1u);
-        num = c->level_numbered;
-    }
+    slot_take(c, &s, label, sig_text(value, VALW), numbered);
     if (out_num != NULL)
-        *out_num = num;
-
-    if (visible)
-        row_item(c, item_i, num, label, value, dim, style);
-
-    if (num != 0u && c->act == num && !selectable) {
-        c->msg = dim ? "not available now" : "read-only";
-        return false;
-    }
-    return selectable && num != 0u && c->act == num;
+        *out_num = s.num;
+    if (s.draw)
+        slot_paint(c, &s, label, value);
+    return slot_hit(c, &s, selectable);
 }
 
 /*---------------------------------------------------------------------------
@@ -154,12 +186,22 @@ static const numspec_t SPEC_X8  = { 16u, 2u, 0u, 0u, 0xFFu };
 static const numspec_t SPEC_X16 = { 16u, 4u, 0u, 0u, 0xFFFFu };
 static const numspec_t SPEC_X32 = { 16u, 8u, 0u, 0u, 0xFFFFFFFFu };
 
-/* What the next declaration will take, before it takes it: an item off the page
-   or on a level that is not on screen never reaches a row, so formatting its
-   value is work the frame throws away. */
-static bool slot_will_draw(const atc_menu_ctx_t *c)
+/* What a number is rather than what it would print as: two frames that agree
+   on these agree on the row, without formatting either. */
+static uint16_t num_vkey(uint32_t mag, bool neg, const numspec_t *s,
+                         unsigned decimals)
 {
-    return at_active(c) && on_page(c, c->item[c->decl_depth]);
+    char h[8];
+
+    h[0] = (char)(mag & 0xFFu);
+    h[1] = (char)((mag >> 8) & 0xFFu);
+    h[2] = (char)((mag >> 16) & 0xFFu);
+    h[3] = (char)((mag >> 24) & 0xFFu);
+    h[4] = (char)(neg ? 1u : 0u);
+    h[5] = (char)s->base;
+    h[6] = (char)s->hexdigits;
+    h[7] = (char)decimals;
+    return sig_text_bytes(h, sizeof h);
 }
 
 static void num_format(char *vb, size_t cap, uint32_t mag, bool neg,
@@ -183,6 +225,8 @@ static bool num_item(atc_menu_ctx_t *c, const char *label, uint32_t mag,
                      uint32_t *out_mag, bool *out_neg)
 {
     char     vb[24];
+    slot_t   slot_of;
+    bool     hit;
     unsigned idx = 0u;
     unsigned frac;
     uint32_t got;
@@ -192,10 +236,15 @@ static bool num_item(atc_menu_ctx_t *c, const char *label, uint32_t mag,
     if (c == NULL)
         return false;
 
-    vb[0] = '\0';
-    if (slot_will_draw(c))
+    slot_take(c, &slot_of, label, num_vkey(mag, neg, s, decimals), true);
+    idx = slot_of.num;
+    hit = slot_hit(c, &slot_of, true);
+    if (slot_of.draw || hit) {
         num_format(vb, sizeof vb, mag, neg, s, decimals);
-    if (item_slot(c, label, vb, true, true, &idx))
+        if (slot_of.draw)
+            slot_paint(c, &slot_of, label, vb);
+    }
+    if (hit)
         begin_edit(c, idx, s->base, decimals, label, vb);
     if (!at_active(c) || !commit_ready(c, idx))
         return false;
@@ -234,16 +283,17 @@ static bool num_item(atc_menu_ctx_t *c, const char *label, uint32_t mag,
 static void num_ro(atc_menu_ctx_t *c, const char *label, uint32_t mag, bool neg,
                    const numspec_t *s, unsigned decimals)
 {
-    char vb[24];
+    slot_t slot;
+    char   vb[24];
 
     if (c == NULL)
         return;
-    if (!slot_will_draw(c)) {
-        (void)item_slot(c, label, NULL, true, false, NULL);
-        return;
+    slot_take(c, &slot, label, num_vkey(mag, neg, s, decimals), true);
+    if (slot.draw) {
+        num_format(vb, sizeof vb, mag, neg, s, decimals);
+        slot_paint(c, &slot, label, vb);
     }
-    num_format(vb, sizeof vb, mag, neg, s, decimals);
-    (void)item_slot(c, label, vb, true, false, NULL);
+    (void)slot_hit(c, &slot, false); /* answers 'read-only' when picked */
 }
 
 /* num_item() writes through the two pointers only when it returns true, so the
@@ -561,9 +611,13 @@ bool atc_menu_submenu(atc_menu_ctx_t *c, const char *label)
 
     num = 0u;
     if (on_page(c, i)) {
+        uint16_t key;
+
         c->level_numbered = (unsigned char)(c->level_numbered + 1u);
         num = c->level_numbered;
-        row_item(c, i, num, label, ">", dim, style);
+        key = item_key(c, i, num, label, sig_text(">", VALW), dim, style);
+        if (row_needs(c, i, key))
+            row_item(c, i, num, label, ">", dim, style, key);
     }
 
     /* Descending is deferred to frame_end so the rest of this frame keeps
