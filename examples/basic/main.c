@@ -372,8 +372,7 @@ int main(int argc, char **argv)
         atc_menu_port_serial_close();
         return 1;
     }
-    /* Every label here is a string literal, so an idle frame need not read one
-       back to see whether it moved. */
+    /* every label here is a literal, so an idle frame need not read one back */
     atc_menu_static_labels(&c, true);
     atc_menu_term_begin(&c);
 

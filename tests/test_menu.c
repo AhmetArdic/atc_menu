@@ -1475,8 +1475,7 @@ static void t_item_set_changes_completely(void)
 }
 
 /* Labels keyed by address: a value still repaints the row, and so does a label
-   that becomes a different string — which is the whole of what the caller
-   promised. */
+   that becomes a different string. */
 static void t_static_labels(void)
 {
     static bool led;

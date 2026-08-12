@@ -77,8 +77,7 @@ void atc_menu_refresh(atc_menu_ctx_t *c)
     }
 }
 
-/* The rows on screen were signed under the old rule, so they have to go again
-   under the new one. */
+/* What is on screen was signed under the old rule, so it goes again. */
 void atc_menu_static_labels(atc_menu_ctx_t *c, bool on)
 {
     if (c == NULL)

@@ -188,9 +188,7 @@ typedef struct {
        colour it like the column it came from. */
     unsigned char edit_item, edit_base, edit_dec, edit_frac, edit_len;
     unsigned char edit_head, edit_vpos;
-    /* how many rows the banner came to this frame, so a row's position costs no
-       reading; here it lands in padding the struct already had */
-    unsigned char head;
+    unsigned char head; /* the banner's height this frame; sits in padding */
     uint16_t      chrome_sig; /* what the chrome was last painted from */
     uint16_t      flags;
     signed char   status;
@@ -199,7 +197,7 @@ typedef struct {
     unsigned char item_style;
 } atc_menu_ctx_t;
 
-/* Measured: 96 bytes with 32-bit pointers, 152 on a 64-bit host. The editor
+/* Measured: 100 bytes with 32-bit pointers, 152 on a 64-bit host. The editor
    scratch lives in the caller's buffer, not here, which is what keeps this
    below what it cost when it held one. Gated on an 8-bit byte, since a C2000
    counts this struct in 16-bit words and the same budget would be a different
@@ -289,12 +287,10 @@ void atc_menu_refresh(atc_menu_ctx_t *c);
 /**
  * @brief Sign item labels by address instead of by text
  *
- * The costliest thing an idle frame does is read every visible label back to
- * see whether it moved. Promise that it cannot — every label a string literal
- * or another string that is never rewritten — and its address stands in for its
- * text, which is most of the frame gone. A label built into a scratch buffer,
- * `sprintf` into one array row after row, breaks the promise: the address holds
- * still while the text moves, and the row goes stale until `r`. Off by default.
+ * Reading every visible label back is most of what an idle frame costs. Promise
+ * they never move — literals, or any string that is not rewritten — and the
+ * address stands in for the text. `sprintf` into one buffer row after row
+ * breaks that promise: the row goes stale until `r`. Off by default.
  *
  * @param c  the context; NULL is ignored
  * @param on true to key labels by address

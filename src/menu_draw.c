@@ -33,8 +33,6 @@
  * The line cache
  *-------------------------------------------------------------------------*/
 
-/* Signing every visible row is what an idle frame costs, so the per-byte price
-   is the frame's floor: sig_mix() is a rotate and an add. */
 static uint16_t sig_bytes(uint16_t sig, const char *s, size_t n)
 {
     size_t i;
@@ -49,13 +47,7 @@ static uint16_t sig_end(uint16_t sig)
     return (sig == 0u) ? 1u : sig; /* 0 means "never painted" */
 }
 
-static uint16_t sig_row(const char *s, size_t n)
-{
-    return sig_end(sig_bytes(0xFFFFu, s, n));
-}
-
-/* Only for pointers the library compares rather than reads: a caller's string
-   is signed by its bytes, since labels get built into scratch buffers. */
+/* For what the library compares rather than reads: an address, not a string. */
 static uint16_t sig_ptr(uint16_t sig, const void *p)
 {
     const void *q = p;
@@ -63,8 +55,7 @@ static uint16_t sig_ptr(uint16_t sig, const void *p)
     return sig_bytes(sig, (const char *)&q, sizeof q);
 }
 
-/* Clipped and signed in one pass: nothing past the column the string is cut at
-   can change the row, and measuring it first would walk it twice. */
+/* Clipped and signed in one pass: measuring it first would walk it twice. */
 static uint16_t sig_str(uint16_t sig, const char *s, size_t max)
 {
     if (s == NULL)
@@ -75,16 +66,6 @@ static uint16_t sig_str(uint16_t sig, const char *s, size_t max)
         max--;
     }
     return sig;
-}
-
-/* Nothing past the column a string is clipped to can change the row. */
-static size_t clip_len(const char *s, size_t max)
-{
-    size_t n = 0u;
-
-    while (n < max && s[n] != '\0')
-        n++;
-    return n;
 }
 
 uint16_t sig_text(const char *s, size_t max)
@@ -104,18 +85,13 @@ static uint16_t item_key(const atc_menu_ctx_t *c, const slot_t *s,
     unsigned style = s->dim ? 0u : s->style;
     uint16_t k;
 
-    /* Each scalar folded in whole rather than walked a byte at a time: the
-       number and the style are a byte each and share a word, the stripe and the
-       dim bit the next one. */
+    /* A scalar folded in whole costs what one of its bytes would through the
+       hash: number and style share a word, stripe and the dim bit the next. */
     k = sig_mix(vkey, (uint16_t)(s->num + (style << 8)));
     k = sig_mix(k, (uint16_t)((s->item_i & 1u) + (s->dim ? 2u : 0u)));
-    if (label != NULL) {
-        /* The address, if the application has promised that is the whole of
-           what a label can be: reading the text back is what an idle frame
-           mostly spends itself on. */
+    if (label != NULL)
         k = ((c->flags & F_LABEL_PTR) != 0u) ? sig_ptr(k, label)
                                              : sig_str(k, label, label_width(c));
-    }
     return sig_end(k);
 }
 
@@ -213,7 +189,9 @@ static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
         return;
     }
 
-    sig = (key != 0u) ? key : sig_row(b->p + b->sig, b->len - b->sig);
+    sig = (key != 0u) ? key
+                      : sig_end(sig_bytes(0xFFFFu, b->p + b->sig,
+                                          b->len - b->sig));
     if (c->row_sig[row - 1u] == sig)
         return;
     if (!save_cursor(c))
@@ -230,10 +208,8 @@ static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
  * Geometry
  *-------------------------------------------------------------------------*/
 
-/* A banner line with nothing in it is not painted, so it is not charged. */
-/* Worked out once a frame rather than per row: every row's position is measured
-   from the banner, and reading the info block back for each of them is a read
-   per row too many. */
+/* Once a frame, not per row: every row is placed from here. A banner line with
+   nothing in it is not painted, so it is not charged. */
 void measure_head(atc_menu_ctx_t *c)
 {
     unsigned n = 0u;
@@ -338,9 +314,8 @@ static void bvalue_sgr(buf_t *b, unsigned style)
     b->vis = vis;
 }
 
-/* An item row is a function of what the frame declared for it, so signing the
-   inputs recognises an unchanged row without building it — and the answer comes
-   before a value is formatted, which is the point of asking. */
+/* Signing the inputs recognises an unchanged row without building it, and the
+   answer comes before the value is formatted — the point of asking. */
 bool row_sign(const atc_menu_ctx_t *c, slot_t *s, const char *label,
               uint16_t vkey)
 {
@@ -361,11 +336,16 @@ void row_item(atc_menu_ctx_t *c, const slot_t *s, const char *label,
     bool     dim = s->dim;
     size_t   lw = label_width(c);
     size_t   used = 0u;
-    size_t   vlen = (value != NULL) ? clip_len(value, VALW) : 0u;
+    size_t   vlen = 0u;
     bool     striped;
 
     if (!row_ok(c, row))
         return;
+
+    if (value != NULL) {
+        while (vlen < VALW && value[vlen] != '\0')
+            vlen++;
+    }
 
     striped = (s->item_i & 1u) == 0u;
     line_begin(c, &b, row, striped ? SGR_ZEBRA : "");
@@ -407,8 +387,6 @@ void row_item(atc_menu_ctx_t *c, const slot_t *s, const char *label,
     if (vlen > 0u) {
         size_t i;
         bpad(&b, lw - used);
-        if (vlen > VALW)
-            vlen = VALW;
         bpad(&b, VALW - vlen);
         /* The value column carries the colour, whatever the widget: it is the
            part of the row that changes, and the eye should land on it. A dim
@@ -428,16 +406,14 @@ void row_separator(atc_menu_ctx_t *c, unsigned item_i)
 {
     unsigned row = item_row(c, item_i);
     bool     striped = (item_i & 1u) == 0u;
-    char     h[2];
     uint16_t key;
     buf_t    b;
 
     if (!row_ok(c, row))
         return;
 
-    h[0] = (char)(item_i & 1u);
-    h[1] = '-'; /* a rule, so it cannot key like an item row */
-    key = sig_row(h, sizeof h);
+    /* seeded with '-', so a rule cannot key like an item row */
+    key = sig_end(sig_mix(0x2D2Du, (uint16_t)(item_i & 1u)));
     if (c->row_sig[row - 1u] == key)
         return;
 

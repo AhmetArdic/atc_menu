@@ -192,8 +192,8 @@ Caller-owned except the context. Measured with 32-bit pointers, 80×24:
 
 | RAM | Bytes | | Flash, `gcc -Os -m32`, `.text` | Bytes |
 |---|---|---|---|---|
-| `atc_menu_ctx_t` | 100 | | whole library | 12 884 |
-| `buf` | 198 | | a 12-row menu, `--gc-sections` | 10 253 |
+| `atc_menu_ctx_t` | 100 | | whole library | 12 860 |
+| `buf` | 198 | | a 12-row menu, `--gc-sections` | 10 229 |
 | `sig[24]` | 48 | | `.bss` + `.data` | 0 |
 | **total** | **346** | | peak stack, deepest widget path | 444 |
 

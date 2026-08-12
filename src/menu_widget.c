@@ -3,11 +3,11 @@
  * @file menu_widget.c
  * @brief What the application declares, frame by frame
  *
- * Every entry an application can put on screen goes through item_slot(): it
- * hands out the declaration index, decides whether the item is on this page and
- * therefore whether it gets a number, paints the row, and answers whether the
- * key just pressed selected it. Everything below that is the difference between
- * one kind of value and another.
+ * Every entry an application can put on screen takes a slot: it gets the next
+ * declaration index, a number if it is on this page, a row if anything it is
+ * drawn from moved, and an answer to whether the key just pressed picked it.
+ * Everything below that is the difference between one kind of value and
+ * another.
  *
  * Immediate mode: nothing is retained between frames but the editor, so a
  * label, a value string or a choice list need only stay valid for the call.
@@ -61,11 +61,9 @@ static bool on_page(const atc_menu_ctx_t *c, unsigned item_i)
     return item_i >= top && item_i < top + c->page_items;
 }
 
-/* A declared row in three steps: slot_take reserves its place and says whether
-   it is on the page at all, row_sign says whether anything it is drawn from
-   moved, and only then is a value turned into text. Numbers are handed out per
-   page and start again at 1 on the next one, so a page never holds more of them
-   than it has rows. */
+/* A declared row in three steps: slot_take reserves its place, row_sign says
+   whether anything it is drawn from moved, and only then is a value turned into
+   text. Numbers are per page and start again at 1 on the next one. */
 static void slot_take(atc_menu_ctx_t *c, slot_t *s, bool numbered)
 {
     unsigned i = next_index(c);
@@ -74,7 +72,6 @@ static void slot_take(atc_menu_ctx_t *c, slot_t *s, bool numbered)
     s->num = 0u;
     s->dim = take_disable(c);
     s->style = (unsigned char)take_style(c);
-    s->key = 0u;
     s->page = false;
     s->draw = false;
 
@@ -87,9 +84,7 @@ static void slot_take(atc_menu_ctx_t *c, slot_t *s, bool numbered)
     if (!on_page(c, i))
         return;
 
-    /* Past here the row is on screen, so it is worth a key — and so is the
-       value the key is made from. */
-    s->page = true;
+    s->page = true; /* on screen, so worth a key — and worth making one from */
     if (numbered) {
         c->level_numbered = (unsigned char)(c->level_numbered + 1u);
         s->num = c->level_numbered;
@@ -108,8 +103,8 @@ static bool slot_hit(atc_menu_ctx_t *c, const slot_t *s, bool selectable)
     return selectable && s->num != 0u && c->act == s->num;
 }
 
-/* The form for a row whose value is already text. A value out of a fixed few
-   passes its own key and is never walked; vkey 0 asks for the string. */
+/* The form for a row whose value is already text; vkey 0 asks for it to be
+   signed, anything else stands in for it. */
 static bool item_slot(atc_menu_ctx_t *c, const char *label, const char *value,
                       uint16_t vkey, bool numbered, bool selectable,
                       unsigned *out_num)
@@ -125,8 +120,7 @@ static bool item_slot(atc_menu_ctx_t *c, const char *label, const char *value,
     return slot_hit(c, &s, selectable);
 }
 
-/* "[X]", "[ ]" and a submenu's ">" are the whole of what those rows can show,
-   so a constant stands in for signing them. */
+/* The whole of what those rows can show, so a constant does for signing. */
 #define VKEY_TRUE  0x5831u
 #define VKEY_FALSE 0x5832u
 #define VKEY_SUB   0x5833u
@@ -191,8 +185,8 @@ static uint16_t num_vkey(uint32_t mag, bool neg, const numspec_t *s,
 {
     uint16_t k = sig_mix((uint16_t)(mag >> 16), (uint16_t)mag);
 
-    /* base and hexdigits are what the row would be formatted by; they fit the
-       low byte together, and the rest of the word is free for the sign. */
+    /* base and hexdigits are what it would be formatted by, and fit one byte
+       between them; the rest of the word is free for the sign. */
     return sig_mix(k, (uint16_t)(s->base + s->hexdigits + (decimals << 8) +
                                  (neg ? 0x1000u : 0u)));
 }
@@ -587,7 +581,6 @@ bool atc_menu_submenu(atc_menu_ctx_t *c, const char *label)
     s.num = 0u;
     s.dim = take_disable(c);
     s.style = (unsigned char)take_style(c);
-    s.key = 0u;
     s.page = false;
     s.draw = false;
 

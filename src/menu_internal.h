@@ -31,9 +31,8 @@
 
 /* Most the chrome can spend: banner (2) + rule + breadcrumb + closing rule +
    footer + message + prompt. An empty banner line is not painted and not
-   charged, so the real cost is 6, 7 or 8 — head_rows() in menu_draw.c has the
-   exact figure. Only the floor atc_menu_init() enforces needs the worst
-   case. */
+   charged, so the real cost is 6, 7 or 8 — measure_head() has the exact figure.
+   Only the floor atc_menu_init() enforces needs the worst case. */
 #define CHROME_ROWS 8u
 
 /*---------------------------------------------------------------------------
@@ -170,9 +169,8 @@ static inline uint32_t magnitude(int32_t v)
  *-------------------------------------------------------------------------*/
 
 /* What one declared row is, from the place it takes to the bytes it becomes.
-   The two sides pass this rather than eight loose arguments: on a 16-bit MCU
-   the arguments past the fourth go on the stack, once to sign the row and again
-   to paint it. */
+   Passed rather than eight loose arguments, half of which a 16-bit MCU would
+   put on the stack twice — once to sign the row, once to paint it. */
 typedef struct {
     unsigned char item_i;
     unsigned char num;   /* 0 when off the page, or when the row takes no number */
@@ -187,9 +185,7 @@ unsigned page_items_max(const atc_menu_ctx_t *c);
 void measure_head(atc_menu_ctx_t *c);
 
 /* Rotate and add, the whole of the signature: three instructions on a 16-bit
-   MCU, against the thirteen Fletcher's two mod-255 folds cost. Here rather than
-   behind a call because a scalar folded in this way is cheaper than the same
-   scalar walked a byte at a time. */
+   MCU, against the thirteen Fletcher's two mod-255 folds cost. */
 static inline uint16_t sig_mix(uint16_t sig, uint16_t v)
 {
     return (uint16_t)((uint16_t)((sig << 1) | (sig >> 15)) + v);
