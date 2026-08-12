@@ -215,7 +215,7 @@
             <mxGeometry height="112" width="375" x="409" y="45" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="uygulama widget&#39;larını bildirir&#xa;&lt;i&gt;her frame baştan — hiçbir ağaç saklanmaz&lt;/i&gt;" mermaidId="n:C1" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="uygulama widget&#39;larını bildirir&#xa;&lt;i&gt;her frame baştan — hiçbir ağaç saklanmaz&lt;/i&gt;" id="20">
+        <UserObject label="uygulama widget&#39;larını bildirir&#xa;&lt;i&gt;her frame baştan — hiçbir ağaç saklanmaz&lt;/i&gt;&#xa;&lt;i&gt;çizilmeyecek satırın değeri formatlanmaz&lt;/i&gt;" mermaidId="n:C1" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="uygulama widget&#39;larını bildirir&#xa;&lt;i&gt;her frame baştan — hiçbir ağaç saklanmaz&lt;/i&gt;&#xa;&lt;i&gt;çizilmeyecek satırın değeri formatlanmaz&lt;/i&gt;" id="20">
           <mxCell parent="18" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="73" width="364" x="414" y="207" as="geometry" />
           </mxCell>
@@ -604,7 +604,7 @@
             <mxGeometry height="39" width="270" x="526" y="1913" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="sig = FNV-1a, 16 bit" mermaidId="n:E8" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="sig = FNV-1a, 16 bit" id="54">
+        <UserObject label="sig = Fletcher-16&#xa;&lt;i&gt;imleç adresi hariç&lt;/i&gt;" mermaidId="n:E8" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="sig = Fletcher-16&#xa;&lt;i&gt;imleç adresi hariç&lt;/i&gt;" id="54">
           <mxCell parent="43" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="54" width="201" x="275" y="1905" as="geometry" />
           </mxCell>
@@ -614,9 +614,9 @@
             <mxGeometry height="200" width="200" x="275" y="2009" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="hiçbir bayt gitmez&#xa;&lt;b&gt;boşta frame bedava&lt;/b&gt;" mermaidId="n:E9x" mermaidBaseStyle="html=1;rounded=1;whiteSpace=wrap;arcSize=50;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#12300f;fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="hiçbir bayt gitmez&#xa;&lt;b&gt;boşta frame bedava&lt;/b&gt;" id="56">
+        <UserObject label="hiçbir bayt gitmez&#xa;&lt;b&gt;boşta frame hatta bedava&lt;/b&gt;&#xa;&lt;i&gt;CPU&#39;da değil: satırlar yine kurulur ve hash&#39;lenir&lt;/i&gt;" mermaidId="n:E9x" mermaidBaseStyle="html=1;rounded=1;whiteSpace=wrap;arcSize=50;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#12300f;fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="hiçbir bayt gitmez&#xa;&lt;b&gt;boşta frame hatta bedava&lt;/b&gt;&#xa;&lt;i&gt;CPU&#39;da değil: satırlar yine kurulur ve hash&#39;lenir&lt;/i&gt;" id="56">
           <mxCell parent="43" style="html=1;rounded=1;whiteSpace=wrap;arcSize=50;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#12300f;fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
-            <mxGeometry height="53" width="174" x="461" y="2279" as="geometry" />
+            <mxGeometry height="92" width="280" x="461" y="2279" as="geometry" />
           </mxCell>
         </UserObject>
         <UserObject label="save_cursor — frame başına bir kez" mermaidId="n:E10" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="save_cursor — frame başına bir kez" id="57">

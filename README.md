@@ -9,7 +9,7 @@ cursor, no arrow keys, no escape sequences on the way in.
 MSP430 EnvMon                                          v0.2
 ahmettardic
 ===========================================================
-Main / I/O (1/5)
+Main / I/O (1/4)
        P1 Outputs
    1   P1.0 LED                                      [ ]
    2   P1.1 Fan                                      [X]
@@ -51,10 +51,14 @@ carries no length, so a `row_sig` shorter than `rows` is the one mistake the
 library cannot catch — it would overrun every frame. Fill the struct in by hand
 if the buffers are not static; the fields are the same four.
 
-`row_sig` is the diff: a 16-bit hash per row, compared before anything goes out.
-That is why an idle frame costs nothing and one changed row costs 128 bytes
-instead of a page — 48 bytes of RAM for a 24-row menu, and the reason for every
-byte figure below.
+`row_sig` is the diff: a 16-bit signature per row — Fletcher-16, with no
+multiply in it, since a target without a hardware multiplier would pay for one
+on every byte of every row. It is compared before anything goes out, which is
+why an idle frame sends nothing and one changed row costs 128 bytes instead of a
+page — 48 bytes of RAM for a 24-row menu, and the reason for every byte figure
+below. Free on the wire is not free in the CPU: the frame still builds and
+signs every visible row, so a menu that redraws in a tight loop is paying for
+frames nobody asked for. Draw when a key arrives or a value moves.
 
 The menu paints rows 1..`rows` from the top-left and never touches anything
 below; a taller terminal simply leaves room, which is where an application puts
@@ -304,7 +308,11 @@ an 80×24 terminal:
 | `sig[24]` | 48 |
 | **Total RAM** | **342** |
 | `.bss` and `.data` in the library | **0** |
-| Peak stack, deepest widget path | 680 |
+| Peak stack, deepest widget path | 528 |
+
+The stack figure is `-fstack-usage` summed along the deepest chain there is —
+`atc_menu_fix` 64, `num_edit_i` 80, `num_item` 128, `item_slot` 96, `row_item`
+160 — and the sink's own frame sits on top of it.
 
 The buffer is one row (`ATC_MENU_ROW_BYTES(cols)`, 150 at 80 columns)
 followed by the scratch an open editor needs — the prompt title and the
@@ -314,15 +322,16 @@ the tail is whatever the buffer has spare, so a bigger array is a longer edit
 line, and the context holds none of it.
 
 Flash, `gcc -Os -m32` because that is what can be measured on a host — a Thumb
-or MSP430 build is smaller:
+or MSP430 build is smaller. `.text` only, so no unwind tables:
 
 | | Bytes |
 |---|---|
-| Whole API, nothing discarded | 12 154 |
-| A 12-row menu, linked with `--gc-sections` | 7 539 |
+| Whole library, nothing discarded | 11 655 |
+| A 12-row menu of six widget kinds, linked with `--gc-sections` | 9 309 |
 
 The gap is the point: each widget is its own function, so a menu that never
-shows a hex value does not carry the hex formatter.
+shows a hex value does not carry the hex formatter — and the menu measured here
+already uses six kinds, so a plainer one drops further.
 
 ## Build
 
@@ -399,7 +408,7 @@ docs/                     packaging a prebuilt artifact
 | Rows per level | 254; past it `atc_menu_frame_end` returns `ERR_STATE` |
 | Page size | 1 to the item area: `rows` less 6, 7 or 8 rows of chrome |
 | Resize | never queried; call `atc_menu_init` again with new buffers |
-| Stale row | a 16-bit signature collides about once in 65536 changes; `r` repaints |
+| Stale row | Fletcher-16 catches every single-byte change outright, but not a pair that cancels — `+k` and `−k` d bytes apart with `k·d ≡ 0 (mod 255)`; `r` repaints |
 
 ## Licence
 
