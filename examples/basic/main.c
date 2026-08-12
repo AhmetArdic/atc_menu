@@ -45,6 +45,10 @@ enum { CH_TEMP = 0, CH_HUM, CH_VBAT, CH_COUNT };
 static uint16_t adc_raw[CH_COUNT] = { 253u, 1638u, 371u };
 static uint32_t sys_ticks = 0xFFFFFFF0u;
 
+/* Trims correct a reading in either direction, so these are the signed rows. */
+static int32_t temp_trim_x10 = -25; /* -2.5 C, one decimal */
+static int16_t hum_zero;
+
 static uint16_t pwm_freq = 1000u;
 static int32_t  duty_x10 = 500;
 static uint16_t ta0ccr0 = 1000u;
@@ -148,24 +152,56 @@ static void sample(atc_menu_ctx_t *c)
 
 static void page_sensors(atc_menu_ctx_t *c)
 {
+    int32_t temp_x10 = (int32_t)adc_raw[CH_TEMP] + temp_trim_x10;
+    int32_t hum_cnt  = (int32_t)adc_raw[CH_HUM] + hum_zero;
     /* Past the band the row says so in its colour, not in a message line. */
-    bool hot = adc_raw[CH_TEMP] > 300u;
+    bool    hot      = temp_x10 > 300;
+
+    if (hum_cnt < 0)
+        hum_cnt = 0; /* a trim can pull the count under the rail */
 
     atc_menu_label(c, "Live ADC readings; Sample Now refreshes them.");
     if (hot)
         atc_menu_item_style(c, ATC_MENU_BOLD | ATC_MENU_FG_RED);
-    atc_menu_fix_ro(c, "Temp (C)", adc_raw[CH_TEMP], 1u);
+    atc_menu_fix_ro(c, "Temp (C)", temp_x10, 1u);
     atc_menu_item_style(c, hot ? (ATC_MENU_BOLD | ATC_MENU_FG_RED)
                                : ATC_MENU_FG_GREEN);
     atc_menu_text_ro(c, "Thermal", hot ? "OVER BAND" : "OK");
     atc_menu_fix_ro(c, "Vbat (V)", adc_raw[CH_VBAT], 2u);
-    atc_menu_uint16_ro(c, "Humidity (%)", (uint16_t)(adc_raw[CH_HUM] * 100u / 4095u));
-    atc_menu_uint16_ro(c, "Hum (raw)", adc_raw[CH_HUM]);
+    atc_menu_uint16_ro(c, "Humidity (%)", (uint16_t)(hum_cnt * 100 / 4095));
+    atc_menu_uint16_ro(c, "Hum (raw)", (uint16_t)hum_cnt);
+
+    /* Both trims take a leading '-', and they act on the rows above: dialling
+       Temp Trim down walks the reading back under the band. */
+    atc_menu_label(c, "Calibration trim");
+    {   /* the local keeps a refused value out of temp_trim_x10 entirely */
+        int32_t trim = temp_trim_x10;
+
+        if (atc_menu_fix(c, "Temp Trim (C)", &trim, 1u)) {
+            if (trim < -500 || trim > 500)
+                atc_menu_reject(c, "Range -50.0..+50.0 C");
+            else
+                temp_trim_x10 = trim;
+        }
+    }
+    {
+        int16_t zero = hum_zero;
+
+        if (atc_menu_int16(c, "Hum Zero (counts)", &zero)) {
+            if (zero < -500 || zero > 500)
+                atc_menu_reject(c, "Range -500..+500 counts");
+            else
+                hum_zero = zero;
+        }
+    }
+
     atc_menu_separator(c);
     if (atc_menu_action(c, "Sample Now"))
         sample(c);
     if (atc_menu_action(c, "Calibrate")) {
         adc_raw[CH_VBAT] = 371u;
+        temp_trim_x10 = 0;
+        hum_zero = 0;
         atc_menu_message(c, "Calibrated");
     }
 }
