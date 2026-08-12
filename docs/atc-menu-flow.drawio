@@ -604,7 +604,7 @@
             <mxGeometry height="39" width="270" x="526" y="1913" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="sig = Fletcher-16&#xa;&lt;i&gt;satırın girdileri üzerinden&lt;/i&gt;" mermaidId="n:E8" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="sig = Fletcher-16&#xa;&lt;i&gt;satırın girdileri üzerinden&lt;/i&gt;" id="54">
+        <UserObject label="sig = döndür ve ekle&#xa;&lt;i&gt;satırın girdileri üzerinden&lt;/i&gt;&#xa;&lt;i&gt;etiket: metni, ya da yalnız adresi&lt;/i&gt;" mermaidId="n:E8" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="sig = döndür ve ekle&#xa;&lt;i&gt;satırın girdileri üzerinden&lt;/i&gt;&#xa;&lt;i&gt;etiket: metni, ya da yalnız adresi&lt;/i&gt;" id="54">
           <mxCell parent="43" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="75" width="201" x="275" y="1905" as="geometry" />
           </mxCell>

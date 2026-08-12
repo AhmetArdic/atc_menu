@@ -1474,6 +1474,42 @@ static void t_item_set_changes_completely(void)
     CHECK(F.len == 0u);
 }
 
+/* Labels keyed by address: a value still repaints the row, and so does a label
+   that becomes a different string — which is the whole of what the caller
+   promised. */
+static void t_static_labels(void)
+{
+    static bool led;
+    unsigned    i;
+
+    setup();
+    atc_menu_static_labels(&C, true);
+
+    for (i = 0u; i < 3u; ++i) {
+        atc_menu_frame_begin(&C);
+        atc_menu_bool_ro(&C, "LED", led);
+        atc_menu_frame_end(&C);
+    }
+    fake_reset(&F);
+    atc_menu_frame_begin(&C);
+    atc_menu_bool_ro(&C, "LED", led);
+    atc_menu_frame_end(&C);
+    CHECK(F.len == 0u); /* nothing moved */
+
+    led = true;
+    fake_reset(&F);
+    atc_menu_frame_begin(&C);
+    atc_menu_bool_ro(&C, "LED", led);
+    atc_menu_frame_end(&C);
+    CHECK(fake_has(&F, "[X]"));
+
+    fake_reset(&F);
+    atc_menu_frame_begin(&C);
+    atc_menu_bool_ro(&C, "Lamp", led);
+    atc_menu_frame_end(&C);
+    CHECK(fake_has(&F, "Lamp"));
+}
+
 /* ---- fuzz ------------------------------------------------------------- */
 
 static uint32_t rnd_state = 12345u;
@@ -1967,6 +2003,7 @@ int main(void)
     t_too_many_rows_is_a_status();
     t_narrow_footer_drops_hints();
     t_long_message_is_clipped();
+    t_static_labels();
     t_fuzz_keys();
 
     printf("%d checks, %d failures\n", checks, failures);

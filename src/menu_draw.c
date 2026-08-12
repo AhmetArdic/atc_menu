@@ -33,21 +33,15 @@
  * The line cache
  *-------------------------------------------------------------------------*/
 
-/* Fletcher-16, no multiply: an MSP430 without a hardware multiplier would pay
-   a software routine per byte. The two sums pack back into the 16 bits this
-   returns, so one signature can be carried across several pieces. */
-static uint16_t sig_more(uint16_t sig, const char *s, size_t n)
+/* Signing every visible row is what an idle frame costs, so the per-byte price
+   is the frame's floor: sig_mix() is a rotate and an add. */
+static uint16_t sig_bytes(uint16_t sig, const char *s, size_t n)
 {
-    uint16_t a = (uint16_t)(sig & 0xFFu), b = (uint16_t)(sig >> 8);
-    size_t   i;
+    size_t i;
 
-    for (i = 0u; i < n; ++i) {
-        a = (uint16_t)(a + (unsigned char)s[i]);
-        a = (uint16_t)((a & 0xFFu) + (a >> 8));
-        b = (uint16_t)(b + a);
-        b = (uint16_t)((b & 0xFFu) + (b >> 8));
-    }
-    return (uint16_t)((b << 8) | a);
+    for (i = 0u; i < n; ++i)
+        sig = sig_mix(sig, (unsigned char)s[i]);
+    return sig;
 }
 
 static uint16_t sig_end(uint16_t sig)
@@ -57,7 +51,7 @@ static uint16_t sig_end(uint16_t sig)
 
 static uint16_t sig_row(const char *s, size_t n)
 {
-    return sig_end(sig_more(0xFFFFu, s, n));
+    return sig_end(sig_bytes(0xFFFFu, s, n));
 }
 
 /* Only for pointers the library compares rather than reads: a caller's string
@@ -66,7 +60,21 @@ static uint16_t sig_ptr(uint16_t sig, const void *p)
 {
     const void *q = p;
 
-    return sig_more(sig, (const char *)&q, sizeof q);
+    return sig_bytes(sig, (const char *)&q, sizeof q);
+}
+
+/* Clipped and signed in one pass: nothing past the column the string is cut at
+   can change the row, and measuring it first would walk it twice. */
+static uint16_t sig_str(uint16_t sig, const char *s, size_t max)
+{
+    if (s == NULL)
+        return sig_mix(sig, 0x100u); /* nothing there, and not an empty string */
+    while (max > 0u && *s != '\0') {
+        sig = sig_mix(sig, (unsigned char)*s);
+        s++;
+        max--;
+    }
+    return sig;
 }
 
 /* Nothing past the column a string is clipped to can change the row. */
@@ -79,20 +87,9 @@ static size_t clip_len(const char *s, size_t max)
     return n;
 }
 
-static uint16_t sig_text_more(uint16_t sig, const char *s, size_t max)
-{
-    return (s == NULL) ? sig_more(sig, "\x00", 1u)
-                       : sig_more(sig, s, clip_len(s, max));
-}
-
-uint16_t sig_text_bytes(const char *s, size_t n)
-{
-    return sig_end(sig_more(0xFFFFu, s, n));
-}
-
 uint16_t sig_text(const char *s, size_t max)
 {
-    return (s == NULL) ? 0u : sig_end(sig_more(0xFFFFu, s, clip_len(s, max)));
+    return (s == NULL) ? 0u : sig_end(sig_str(0xFFFFu, s, max));
 }
 
 static size_t label_width(const atc_menu_ctx_t *c)
@@ -100,27 +97,25 @@ static size_t label_width(const atc_menu_ctx_t *c)
     return (size_t)c->cols - NUMW - VALW;
 }
 
-/* An item row is a function of what the frame declared for it, so signing the
-   inputs recognises an unchanged row without building it. */
-uint16_t item_key(const atc_menu_ctx_t *c, unsigned item_i, unsigned number,
-                  const char *label, uint16_t vkey, bool dim, unsigned style)
+static uint16_t item_key(const atc_menu_ctx_t *c, const slot_t *s,
+                         const char *label, uint16_t vkey)
 {
-    char     h[7];
+    /* the row is drawn dim rather than styled, so it keys that way too */
+    unsigned style = s->dim ? 0u : s->style;
     uint16_t k;
 
-    if (dim)
-        style = 0u; /* the row is drawn that way, so it keys that way */
-
-    h[0] = (char)number;
-    h[1] = (char)(dim ? 1u : 0u);
-    h[2] = (char)style;
-    h[3] = (char)(item_i & 1u);        /* the stripe */
-    h[4] = (char)(vkey & 0xFFu);
-    h[5] = (char)(vkey >> 8);
-    h[6] = '\x1f';
-    k = sig_more(0xFFFFu, h, sizeof h);
-    if (label != NULL)
-        k = sig_more(k, label, clip_len(label, label_width(c)));
+    /* Each scalar folded in whole rather than walked a byte at a time: the
+       number and the style are a byte each and share a word, the stripe and the
+       dim bit the next one. */
+    k = sig_mix(vkey, (uint16_t)(s->num + (style << 8)));
+    k = sig_mix(k, (uint16_t)((s->item_i & 1u) + (s->dim ? 2u : 0u)));
+    if (label != NULL) {
+        /* The address, if the application has promised that is the whole of
+           what a label can be: reading the text back is what an idle frame
+           mostly spends itself on. */
+        k = ((c->flags & F_LABEL_PTR) != 0u) ? sig_ptr(k, label)
+                                             : sig_str(k, label, label_width(c));
+    }
     return sig_end(k);
 }
 
@@ -128,27 +123,22 @@ uint16_t item_key(const atc_menu_ctx_t *c, unsigned item_i, unsigned number,
    prompt moves with every keystroke, so frame_end never caches it. */
 uint16_t chrome_key(const atc_menu_ctx_t *c)
 {
-    char     h[7];
     uint16_t k;
     unsigned d;
 
-    h[0] = (char)c->level_items;
-    h[1] = (char)c->page_items;
-    h[2] = (char)c->top[c->nav_depth];
-    h[3] = (char)c->nav_depth;
-    h[4] = (char)c->shown_items;
-    h[5] = (char)c->pending;
-    h[6] = (char)c->rows;
-    k = sig_more(0xFFFFu, h, sizeof h);
+    k = sig_mix(0xFFFFu, (uint16_t)(c->level_items + (c->page_items << 8)));
+    k = sig_mix(k, (uint16_t)(c->top[c->nav_depth] + (c->nav_depth << 8)));
+    k = sig_mix(k, (uint16_t)(c->shown_items + (c->pending << 8)));
+    k = sig_mix(k, c->rows);
     k = sig_ptr(k, c->info);
     if (c->info != NULL) {
-        k = sig_text_more(k, c->info->name, c->cols);
-        k = sig_text_more(k, c->info->version, c->cols);
-        k = sig_text_more(k, c->info->owner, c->cols);
+        k = sig_str(k, c->info->name, c->cols);
+        k = sig_str(k, c->info->version, c->cols);
+        k = sig_str(k, c->info->owner, c->cols);
     }
     for (d = 0u; d < c->nav_depth; ++d)
-        k = sig_text_more(k, c->crumb[d], c->cols);
-    k = sig_text_more(k, c->msg, c->cols);
+        k = sig_str(k, c->crumb[d], c->cols);
+    k = sig_str(k, c->msg, c->cols);
     return sig_end(k);
 }
 
@@ -241,22 +231,25 @@ static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
  *-------------------------------------------------------------------------*/
 
 /* A banner line with nothing in it is not painted, so it is not charged. */
-static unsigned head_rows(const atc_menu_ctx_t *c)
+/* Worked out once a frame rather than per row: every row's position is measured
+   from the banner, and reading the info block back for each of them is a read
+   per row too many. */
+void measure_head(atc_menu_ctx_t *c)
 {
     unsigned n = 0u;
 
-    if (c->info == NULL)
-        return 0u;
-    if (c->info->name != NULL || c->info->version != NULL)
-        n++;
-    if (c->info->owner != NULL)
-        n++;
-    return n;
+    if (c->info != NULL) {
+        if (c->info->name != NULL || c->info->version != NULL)
+            n++;
+        if (c->info->owner != NULL)
+            n++;
+    }
+    c->head = (unsigned char)n;
 }
 
 static unsigned first_item_row(const atc_menu_ctx_t *c)
 {
-    return head_rows(c) + 3u; /* the banner, then the rule and the breadcrumb */
+    return c->head + 3u; /* the banner, then the rule and the breadcrumb */
 }
 
 /* Where a visible item lands: the first item row, offset by how far the item is
@@ -269,7 +262,7 @@ static unsigned item_row(const atc_menu_ctx_t *c, unsigned item_i)
 /* Two rows above the items — the rule and the breadcrumb — and four below. */
 unsigned page_items_max(const atc_menu_ctx_t *c)
 {
-    return (unsigned)c->rows - head_rows(c) - 6u;
+    return (unsigned)c->rows - c->head - 6u;
 }
 
 /* The closing rule goes straight after the last item row, not at the bottom of
@@ -345,20 +338,27 @@ static void bvalue_sgr(buf_t *b, unsigned style)
     b->vis = vis;
 }
 
-/* Asked before a value is formatted, which is the point of asking. */
-bool row_needs(const atc_menu_ctx_t *c, unsigned item_i, uint16_t key)
+/* An item row is a function of what the frame declared for it, so signing the
+   inputs recognises an unchanged row without building it — and the answer comes
+   before a value is formatted, which is the point of asking. */
+bool row_sign(const atc_menu_ctx_t *c, slot_t *s, const char *label,
+              uint16_t vkey)
 {
-    unsigned row = item_row(c, item_i);
+    unsigned row = item_row(c, s->item_i);
 
-    return row_ok(c, row) && c->row_sig[row - 1u] != key;
+    s->key = item_key(c, s, label, vkey);
+    s->draw = row_ok(c, row) && c->row_sig[row - 1u] != s->key;
+    return s->draw;
 }
 
-void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
-              const char *label, const char *value, bool dim, unsigned style,
-              uint16_t key)
+void row_item(atc_menu_ctx_t *c, const slot_t *s, const char *label,
+              const char *value)
 {
     buf_t    b;
-    unsigned row = item_row(c, item_i);
+    unsigned row = item_row(c, s->item_i);
+    unsigned number = s->num;
+    unsigned style = s->dim ? 0u : s->style; /* "not available now" outranks it */
+    bool     dim = s->dim;
     size_t   lw = label_width(c);
     size_t   used = 0u;
     size_t   vlen = (value != NULL) ? clip_len(value, VALW) : 0u;
@@ -367,10 +367,7 @@ void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
     if (!row_ok(c, row))
         return;
 
-    if (dim)
-        style = 0u; /* "not available now" outranks decoration */
-
-    striped = (item_i & 1u) == 0u;
+    striped = (s->item_i & 1u) == 0u;
     line_begin(c, &b, row, striped ? SGR_ZEBRA : "");
     if (dim)
         bsgr(&b, SGR_DIM);
@@ -422,7 +419,7 @@ void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
             bput(&b, value[i]);
     }
 
-    line_end(c, &b, row, true, striped ? (size_t)c->cols : 0u, key);
+    line_end(c, &b, row, true, striped ? (size_t)c->cols : 0u, s->key);
 }
 
 /* A rule inside the item area. It takes its stripe from the same alternation

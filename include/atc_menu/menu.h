@@ -188,6 +188,9 @@ typedef struct {
        colour it like the column it came from. */
     unsigned char edit_item, edit_base, edit_dec, edit_frac, edit_len;
     unsigned char edit_head, edit_vpos;
+    /* how many rows the banner came to this frame, so a row's position costs no
+       reading; here it lands in padding the struct already had */
+    unsigned char head;
     uint16_t      chrome_sig; /* what the chrome was last painted from */
     uint16_t      flags;
     signed char   status;
@@ -282,6 +285,21 @@ void atc_menu_key(atc_menu_ctx_t *c, int byte);
  * @param c the context; NULL is ignored
  */
 void atc_menu_refresh(atc_menu_ctx_t *c);
+
+/**
+ * @brief Sign item labels by address instead of by text
+ *
+ * The costliest thing an idle frame does is read every visible label back to
+ * see whether it moved. Promise that it cannot — every label a string literal
+ * or another string that is never rewritten — and its address stands in for its
+ * text, which is most of the frame gone. A label built into a scratch buffer,
+ * `sprintf` into one array row after row, breaks the promise: the address holds
+ * still while the text moves, and the row goes stale until `r`. Off by default.
+ *
+ * @param c  the context; NULL is ignored
+ * @param on true to key labels by address
+ */
+void atc_menu_static_labels(atc_menu_ctx_t *c, bool on);
 
 /**
  * @brief Return to the root level

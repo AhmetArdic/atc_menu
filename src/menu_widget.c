@@ -61,50 +61,39 @@ static bool on_page(const atc_menu_ctx_t *c, unsigned item_i)
     return item_i >= top && item_i < top + c->page_items;
 }
 
-/* A declared row in two halves: slot_take reserves it and says whether
-   anything moved, and only a row that has to be built gets its value turned
-   into text. Numbers are handed out per page and start again at 1 on the next
-   one, so a page never holds more of them than it has rows. */
-typedef struct {
-    unsigned item_i;
-    unsigned num;   /* 0 when off the page, or when the row takes no number */
-    unsigned style;
-    uint16_t key;
-    bool     dim;
-    bool     draw;  /* the row has to be built */
-} slot_t;
-
-static void slot_take(atc_menu_ctx_t *c, slot_t *s, const char *label,
-                      uint16_t vkey, bool numbered)
+/* A declared row in three steps: slot_take reserves its place and says whether
+   it is on the page at all, row_sign says whether anything it is drawn from
+   moved, and only then is a value turned into text. Numbers are handed out per
+   page and start again at 1 on the next one, so a page never holds more of them
+   than it has rows. */
+static void slot_take(atc_menu_ctx_t *c, slot_t *s, bool numbered)
 {
-    s->item_i = next_index(c);
+    unsigned i = next_index(c);
+
+    s->item_i = (unsigned char)i;
     s->num = 0u;
     s->dim = take_disable(c);
-    s->style = take_style(c);
+    s->style = (unsigned char)take_style(c);
     s->key = 0u;
+    s->page = false;
     s->draw = false;
 
     if (!at_active(c))
         return;
 
-    if (s->item_i + 1u > c->level_items)
-        c->level_items = (unsigned char)(s->item_i + 1u);
+    if (i + 1u > c->level_items)
+        c->level_items = (unsigned char)(i + 1u);
 
-    if (!on_page(c, s->item_i))
+    if (!on_page(c, i))
         return;
 
+    /* Past here the row is on screen, so it is worth a key — and so is the
+       value the key is made from. */
+    s->page = true;
     if (numbered) {
         c->level_numbered = (unsigned char)(c->level_numbered + 1u);
         s->num = c->level_numbered;
     }
-    s->key = item_key(c, s->item_i, s->num, label, vkey, s->dim, s->style);
-    s->draw = row_needs(c, s->item_i, s->key);
-}
-
-static void slot_paint(atc_menu_ctx_t *c, const slot_t *s, const char *label,
-                       const char *value)
-{
-    row_item(c, s->item_i, s->num, label, value, s->dim, s->style, s->key);
 }
 
 /* An unpickable row says why rather than swallowing the key. */
@@ -119,19 +108,28 @@ static bool slot_hit(atc_menu_ctx_t *c, const slot_t *s, bool selectable)
     return selectable && s->num != 0u && c->act == s->num;
 }
 
-/* The form for a row whose value is already text. */
+/* The form for a row whose value is already text. A value out of a fixed few
+   passes its own key and is never walked; vkey 0 asks for the string. */
 static bool item_slot(atc_menu_ctx_t *c, const char *label, const char *value,
-                      bool numbered, bool selectable, unsigned *out_num)
+                      uint16_t vkey, bool numbered, bool selectable,
+                      unsigned *out_num)
 {
     slot_t s;
 
-    slot_take(c, &s, label, sig_text(value, VALW), numbered);
+    slot_take(c, &s, numbered);
+    if (s.page &&
+        row_sign(c, &s, label, (vkey != 0u) ? vkey : sig_text(value, VALW)))
+        row_item(c, &s, label, value);
     if (out_num != NULL)
         *out_num = s.num;
-    if (s.draw)
-        slot_paint(c, &s, label, value);
     return slot_hit(c, &s, selectable);
 }
+
+/* "[X]", "[ ]" and a submenu's ">" are the whole of what those rows can show,
+   so a constant stands in for signing them. */
+#define VKEY_TRUE  0x5831u
+#define VKEY_FALSE 0x5832u
+#define VKEY_SUB   0x5833u
 
 /*---------------------------------------------------------------------------
  * Decoration
@@ -140,7 +138,7 @@ static bool item_slot(atc_menu_ctx_t *c, const char *label, const char *value,
 void atc_menu_label(atc_menu_ctx_t *c, const char *text)
 {
     if (c != NULL)
-        (void)item_slot(c, text, NULL, false, false, NULL);
+        (void)item_slot(c, text, NULL, 0u, false, false, NULL);
 }
 
 void atc_menu_separator(atc_menu_ctx_t *c)
@@ -191,17 +189,12 @@ static const numspec_t SPEC_X32 = { 16u, 8u, 0u, 0u, 0xFFFFFFFFu };
 static uint16_t num_vkey(uint32_t mag, bool neg, const numspec_t *s,
                          unsigned decimals)
 {
-    char h[8];
+    uint16_t k = sig_mix((uint16_t)(mag >> 16), (uint16_t)mag);
 
-    h[0] = (char)(mag & 0xFFu);
-    h[1] = (char)((mag >> 8) & 0xFFu);
-    h[2] = (char)((mag >> 16) & 0xFFu);
-    h[3] = (char)((mag >> 24) & 0xFFu);
-    h[4] = (char)(neg ? 1u : 0u);
-    h[5] = (char)s->base;
-    h[6] = (char)s->hexdigits;
-    h[7] = (char)decimals;
-    return sig_text_bytes(h, sizeof h);
+    /* base and hexdigits are what the row would be formatted by; they fit the
+       low byte together, and the rest of the word is free for the sign. */
+    return sig_mix(k, (uint16_t)(s->base + s->hexdigits + (decimals << 8) +
+                                 (neg ? 0x1000u : 0u)));
 }
 
 static void num_format(char *vb, size_t cap, uint32_t mag, bool neg,
@@ -236,13 +229,15 @@ static bool num_item(atc_menu_ctx_t *c, const char *label, uint32_t mag,
     if (c == NULL)
         return false;
 
-    slot_take(c, &slot_of, label, num_vkey(mag, neg, s, decimals), true);
+    slot_take(c, &slot_of, true);
+    if (slot_of.page)
+        (void)row_sign(c, &slot_of, label, num_vkey(mag, neg, s, decimals));
     idx = slot_of.num;
     hit = slot_hit(c, &slot_of, true);
     if (slot_of.draw || hit) {
         num_format(vb, sizeof vb, mag, neg, s, decimals);
         if (slot_of.draw)
-            slot_paint(c, &slot_of, label, vb);
+            row_item(c, &slot_of, label, vb);
     }
     if (hit)
         begin_edit(c, idx, s->base, decimals, label, vb);
@@ -288,10 +283,10 @@ static void num_ro(atc_menu_ctx_t *c, const char *label, uint32_t mag, bool neg,
 
     if (c == NULL)
         return;
-    slot_take(c, &slot, label, num_vkey(mag, neg, s, decimals), true);
-    if (slot.draw) {
+    slot_take(c, &slot, true);
+    if (slot.page && row_sign(c, &slot, label, num_vkey(mag, neg, s, decimals))) {
         num_format(vb, sizeof vb, mag, neg, s, decimals);
-        slot_paint(c, &slot, label, vb);
+        row_item(c, &slot, label, vb);
     }
     (void)slot_hit(c, &slot, false); /* answers 'read-only' when picked */
 }
@@ -383,13 +378,14 @@ void atc_menu_fix_ro(atc_menu_ctx_t *c, const char *label, int32_t v,
 void atc_menu_bool_ro(atc_menu_ctx_t *c, const char *label, bool v)
 {
     if (c != NULL)
-        (void)item_slot(c, label, v ? "[X]" : "[ ]", true, false, NULL);
+        (void)item_slot(c, label, v ? "[X]" : "[ ]",
+                        v ? VKEY_TRUE : VKEY_FALSE, true, false, NULL);
 }
 
 void atc_menu_text_ro(atc_menu_ctx_t *c, const char *label, const char *text)
 {
     if (c != NULL)
-        (void)item_slot(c, label, text, true, false, NULL);
+        (void)item_slot(c, label, text, 0u, true, false, NULL);
 }
 
 /*---------------------------------------------------------------------------
@@ -495,7 +491,8 @@ bool atc_menu_bool(atc_menu_ctx_t *c, const char *label, bool *v)
 
     if (c == NULL || v == NULL)
         return false;
-    if (item_slot(c, label, *v ? "[X]" : "[ ]", true, true, &idx)) {
+    if (item_slot(c, label, *v ? "[X]" : "[ ]", *v ? VKEY_TRUE : VKEY_FALSE,
+                  true, true, &idx)) {
         *v = !*v;
         return true;
     }
@@ -515,7 +512,7 @@ bool atc_menu_text(atc_menu_ctx_t *c, const char *label, char *buf, size_t cap)
         c->edit_item == (unsigned)c->level_numbered + 1u)
         shown = edit_text_c(c);
 
-    if (item_slot(c, label, shown, true, true, &idx))
+    if (item_slot(c, label, shown, 0u, true, true, &idx))
         begin_edit_text(c, idx, label, buf);
     if (!at_active(c) || !commit_ready(c, idx) || (c->flags & F_TEXT) == 0u)
         return false;
@@ -540,7 +537,7 @@ bool atc_menu_choice(atc_menu_ctx_t *c, const char *label, unsigned *index,
 
     /* The row keeps showing what is committed; the candidate lives in the
        prompt, so both are on screen while stepping through. */
-    if (item_slot(c, label, choices[*index], true, true, &idx)) {
+    if (item_slot(c, label, choices[*index], 0u, true, true, &idx)) {
         unsigned first = (*index + 1u) % count;
         begin_edit_choice(c, idx, first, count, label, choices[first]);
         return false;
@@ -570,7 +567,7 @@ bool atc_menu_action(atc_menu_ctx_t *c, const char *label)
 {
     if (c == NULL)
         return false;
-    return item_slot(c, label, NULL, true, true, NULL);
+    return item_slot(c, label, NULL, 0u, true, true, NULL);
 }
 
 /*---------------------------------------------------------------------------
@@ -580,16 +577,19 @@ bool atc_menu_action(atc_menu_ctx_t *c, const char *label)
 bool atc_menu_submenu(atc_menu_ctx_t *c, const char *label)
 {
     unsigned i;
-    unsigned num;
-    unsigned style;
-    bool     dim;
+    slot_t   s;
 
     if (c == NULL)
         return false;
 
     i = next_index(c);
-    dim = take_disable(c);
-    style = take_style(c);
+    s.item_i = (unsigned char)i;
+    s.num = 0u;
+    s.dim = take_disable(c);
+    s.style = (unsigned char)take_style(c);
+    s.key = 0u;
+    s.page = false;
+    s.draw = false;
 
     if (c->decl_depth < c->nav_depth) {
         if (i != c->path[c->decl_depth])
@@ -609,20 +609,16 @@ bool atc_menu_submenu(atc_menu_ctx_t *c, const char *label)
     if (i + 1u > c->level_items)
         c->level_items = (unsigned char)(i + 1u);
 
-    num = 0u;
     if (on_page(c, i)) {
-        uint16_t key;
-
         c->level_numbered = (unsigned char)(c->level_numbered + 1u);
-        num = c->level_numbered;
-        key = item_key(c, i, num, label, sig_text(">", VALW), dim, style);
-        if (row_needs(c, i, key))
-            row_item(c, i, num, label, ">", dim, style, key);
+        s.num = c->level_numbered;
+        if (row_sign(c, &s, label, VKEY_SUB))
+            row_item(c, &s, label, ">");
     }
 
     /* Descending is deferred to frame_end so the rest of this frame keeps
        describing the level the user is still looking at. */
-    if (!dim && num != 0u && c->act == num) {
+    if (!s.dim && s.num != 0u && c->act == s.num) {
         if ((unsigned)c->nav_depth + 1u >= ATC_MENU_MAX_DEPTH)
             c->status = (signed char)ATC_MENU_ERR_STATE;
         else

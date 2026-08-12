@@ -42,6 +42,7 @@ atc_menu_status_t atc_menu_init(atc_menu_ctx_t *c, const atc_menu_info_t *info,
     c->row_sig = screen->row_sig;
     c->rows = screen->rows;
     c->cols = screen->cols;
+    measure_head(c);
     /* until 'i' says otherwise */
     c->page_items = (unsigned char)page_items_max(c);
     memset(c->row_sig, 0, (size_t)c->rows * sizeof *c->row_sig);
@@ -74,6 +75,19 @@ void atc_menu_refresh(atc_menu_ctx_t *c)
         memset(c->row_sig, 0, (size_t)c->rows * sizeof *c->row_sig);
         c->chrome_sig = 0u;
     }
+}
+
+/* The rows on screen were signed under the old rule, so they have to go again
+   under the new one. */
+void atc_menu_static_labels(atc_menu_ctx_t *c, bool on)
+{
+    if (c == NULL)
+        return;
+    if (on)
+        c->flags |= F_LABEL_PTR;
+    else
+        c->flags &= (uint16_t)~F_LABEL_PTR;
+    atc_menu_refresh(c);
 }
 
 /*---------------------------------------------------------------------------
@@ -170,6 +184,7 @@ atc_menu_status_t atc_menu_frame_begin(atc_menu_ctx_t *c)
     if (c == NULL || c->sink == NULL)
         return ATC_MENU_ERR_PARAM;
 
+    measure_head(c);
     c->decl_depth = 0u;
     c->level_numbered = 0u;
     c->level_items = 0u;

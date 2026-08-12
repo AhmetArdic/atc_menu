@@ -104,6 +104,9 @@ static inline unsigned text_room(const atc_menu_ctx_t *c)
    state is still whole, so atc_menu_reject() can put it back on screen. */
 #define F_DELIVERED 0x0100u
 #define F_CHOICE    0x0200u
+/* atc_menu_static_labels(): the caller's promise that a label's address is as
+   good as its text. Not cleared by a frame — it is a property of the menu. */
+#define F_LABEL_PTR 0x0400u
 
 /* F_TEXT and F_CHOICE say which editor F_EDIT means; they outlive it by design,
    since a delivered value keeps its kind until frame_end retires it. */
@@ -166,16 +169,37 @@ static inline uint32_t magnitude(int32_t v)
  * has to know how tall the banner came out.
  *-------------------------------------------------------------------------*/
 
+/* What one declared row is, from the place it takes to the bytes it becomes.
+   The two sides pass this rather than eight loose arguments: on a 16-bit MCU
+   the arguments past the fourth go on the stack, once to sign the row and again
+   to paint it. */
+typedef struct {
+    unsigned char item_i;
+    unsigned char num;   /* 0 when off the page, or when the row takes no number */
+    unsigned char style;
+    bool          dim;
+    bool          page;  /* on the page, so the row is worth signing */
+    bool          draw;  /* it moved, so it has to be built */
+    uint16_t      key;
+} slot_t;
+
 unsigned page_items_max(const atc_menu_ctx_t *c);
+void measure_head(atc_menu_ctx_t *c);
+
+/* Rotate and add, the whole of the signature: three instructions on a 16-bit
+   MCU, against the thirteen Fletcher's two mod-255 folds cost. Here rather than
+   behind a call because a scalar folded in this way is cheaper than the same
+   scalar walked a byte at a time. */
+static inline uint16_t sig_mix(uint16_t sig, uint16_t v)
+{
+    return (uint16_t)((uint16_t)((sig << 1) | (sig >> 15)) + v);
+}
 
 uint16_t sig_text(const char *s, size_t max);
-uint16_t sig_text_bytes(const char *s, size_t n);
-uint16_t item_key(const atc_menu_ctx_t *c, unsigned item_i, unsigned number,
-                  const char *label, uint16_t vkey, bool dim, unsigned style);
-bool row_needs(const atc_menu_ctx_t *c, unsigned item_i, uint16_t key);
-void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
-              const char *label, const char *value, bool dim, unsigned style,
-              uint16_t key);
+bool row_sign(const atc_menu_ctx_t *c, slot_t *s, const char *label,
+              uint16_t vkey);
+void row_item(atc_menu_ctx_t *c, const slot_t *s, const char *label,
+              const char *value);
 void row_separator(atc_menu_ctx_t *c, unsigned item_i);
 uint16_t chrome_key(const atc_menu_ctx_t *c);
 void paint_chrome(atc_menu_ctx_t *c);

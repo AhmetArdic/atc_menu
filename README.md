@@ -152,9 +152,16 @@ the one mistake the library cannot catch.
 `row_sig` is the diff. A row is signed by **what it is drawn from** — label,
 value, number, style, stripe — rather than by the bytes it would come out as,
 so an unchanged row is recognised without being laid out and an unchanged
-number is never even formatted. The seven chrome rows go the same way under one
+number is never even formatted. Each of those goes in whole, a rotate and an
+add; only the label is walked. The seven chrome rows go the same way under one
 signature, except while an editor is open. That is why an idle frame sends
 nothing and one changed row costs 128 bytes instead of a page.
+
+Reading every label back is then what an idle frame mostly spends itself on.
+`atc_menu_static_labels(c, true)` says they never move — literals, or any
+string that is never rewritten — and their addresses stand in for their text.
+A label built with `sprintf` into one scratch buffer breaks that promise: the
+address holds still while the text changes, and the row goes stale until `r`.
 
 `rows` is the terminal, not the menu: 6 to 8 rows go to the chrome (a banner
 line with nothing in it is not painted and not charged) and the items get the
@@ -185,10 +192,10 @@ Caller-owned except the context. Measured with 32-bit pointers, 80×24:
 
 | RAM | Bytes | | Flash, `gcc -Os -m32`, `.text` | Bytes |
 |---|---|---|---|---|
-| `atc_menu_ctx_t` | 96 | | whole library | 13 027 |
-| `buf` | 198 | | a 12-row menu, `--gc-sections` | 10 706 |
+| `atc_menu_ctx_t` | 100 | | whole library | 12 884 |
+| `buf` | 198 | | a 12-row menu, `--gc-sections` | 10 253 |
 | `sig[24]` | 48 | | `.bss` + `.data` | 0 |
-| **total** | **342** | | peak stack, deepest widget path | 512 |
+| **total** | **346** | | peak stack, deepest widget path | 444 |
 
 Each widget is its own function, so a menu that never shows a hex value does not
 carry the hex formatter.
@@ -241,7 +248,7 @@ screen /tmp/ttyB 115200
 | Rows per level | 254; past it `atc_menu_frame_end` returns `ERR_STATE` |
 | Page size | 1 to the item area: `rows` less 6, 7 or 8 rows of chrome |
 | Resize | never queried; call `atc_menu_init` again with new buffers |
-| Stale row | Fletcher-16 catches every single-byte change, but not a pair that cancels — `+k` and `−k` d bytes apart with `k·d ≡ 0 (mod 255)`; `r` repaints |
+| Stale row | the signature catches every single-byte change, but it is 16 bits: a pair that cancels can slip through, and `r` repaints |
 
 ## Licence
 
