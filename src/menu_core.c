@@ -103,7 +103,8 @@ atc_menu_status_t atc_menu_term_end(atc_menu_ctx_t *c)
     /* The row half, not the whole buffer: the tail behind it belongs to an open
        editor, and a sequence that outgrew its room should be refused rather
        than written over the keystrokes. */
-    b.p = c->buf; b.cap = row_cap(c); b.len = 0u; b.body = 0u; b.vis = 0u;
+    b.p = c->buf; b.cap = row_cap(c); b.len = 0u; b.body = 0u; b.sig = 0u;
+    b.vis = 0u;
     bstr(&b, "\x1b[0m\x1b[?25h\x1b[");
     bu32(&b, c->rows); /* the bottom of the window the menu was given */
     bstr(&b, ";1H");

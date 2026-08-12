@@ -128,6 +128,7 @@ typedef struct {
     size_t cap;
     size_t len;
     size_t body; /* offset where the content after the ANSI prefix starts */
+    size_t sig;  /* offset the signature starts at: past the cursor address */
     size_t vis;  /* columns written; escape sequences do not count */
 } buf_t;
 

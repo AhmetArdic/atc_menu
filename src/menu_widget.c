@@ -154,12 +154,21 @@ static const numspec_t SPEC_X8  = { 16u, 2u, 0u, 0u, 0xFFu };
 static const numspec_t SPEC_X16 = { 16u, 4u, 0u, 0u, 0xFFFFu };
 static const numspec_t SPEC_X32 = { 16u, 8u, 0u, 0u, 0xFFFFFFFFu };
 
+/* What the next declaration will take, before it takes it: an item off the page
+   or on a level that is not on screen never reaches a row, so formatting its
+   value is work the frame throws away. */
+static bool slot_will_draw(const atc_menu_ctx_t *c)
+{
+    return at_active(c) && on_page(c, c->item[c->decl_depth]);
+}
+
 static void num_format(char *vb, size_t cap, uint32_t mag, bool neg,
                        const numspec_t *s, unsigned decimals)
 {
     buf_t b;
 
-    b.p = vb; b.cap = cap - 1u; b.len = 0u; b.body = 0u; b.vis = 0u;
+    b.p = vb; b.cap = cap - 1u; b.len = 0u; b.body = 0u; b.sig = 0u;
+    b.vis = 0u;
     if (s->base == 16u) {
         bstr(&b, "0x");
         bhexdigits(&b, mag, s->hexdigits);
@@ -183,7 +192,9 @@ static bool num_item(atc_menu_ctx_t *c, const char *label, uint32_t mag,
     if (c == NULL)
         return false;
 
-    num_format(vb, sizeof vb, mag, neg, s, decimals);
+    vb[0] = '\0';
+    if (slot_will_draw(c))
+        num_format(vb, sizeof vb, mag, neg, s, decimals);
     if (item_slot(c, label, vb, true, true, &idx))
         begin_edit(c, idx, s->base, decimals, label, vb);
     if (!at_active(c) || !commit_ready(c, idx))
@@ -227,6 +238,10 @@ static void num_ro(atc_menu_ctx_t *c, const char *label, uint32_t mag, bool neg,
 
     if (c == NULL)
         return;
+    if (!slot_will_draw(c)) {
+        (void)item_slot(c, label, NULL, true, false, NULL);
+        return;
+    }
     num_format(vb, sizeof vb, mag, neg, s, decimals);
     (void)item_slot(c, label, vb, true, false, NULL);
 }

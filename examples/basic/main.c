@@ -322,6 +322,13 @@ static void page_main(atc_menu_ctx_t *c)
 
 /* ---- host plumbing ------------------------------------------------------ */
 
+static void draw(atc_menu_ctx_t *c)
+{
+    atc_menu_frame_begin(c);
+    page_main(c);
+    atc_menu_frame_end(c);
+}
+
 /* The menu goes out of the serial port, so the console it was started from is
    free to report what each update cost: a full page against a single changed
    row is visible there. */
@@ -374,14 +381,17 @@ int main(int argc, char **argv)
 
         tx_self = 0u;
 
-        /* Two frames: a key that opens a submenu takes effect at frame_end, and
-           an idle frame costs nothing, so the new level shows straight away. */
-        atc_menu_frame_begin(&c);
-        page_main(&c);
-        atc_menu_frame_end(&c);
-        atc_menu_frame_begin(&c);
-        page_main(&c);
-        atc_menu_frame_end(&c);
+        /* One frame a pass: an idle frame sends nothing but still builds and
+           hashes every row. A key gets a second, since the level it opens only
+           lands at frame_end. */
+        ch = atc_menu_port_serial_getkey();
+        if (ch >= 0) {
+            atc_menu_key(&c, ch);
+            sys_ticks++;
+        }
+        draw(&c);
+        if (ch >= 0)
+            draw(&c);
 
         cost = (tx_total - tx_before) - tx_self;
         if (cost != 0u) {
@@ -397,13 +407,8 @@ int main(int argc, char **argv)
             fflush(stdout);
         }
 
-        ch = atc_menu_port_serial_getkey();
-        if (ch < 0) {
+        if (ch < 0)
             usleep(20000u); /* the read returns at once when idle */
-            continue;
-        }
-        atc_menu_key(&c, ch);
-        sys_ticks++;
     }
 
     atc_menu_term_end(&c);

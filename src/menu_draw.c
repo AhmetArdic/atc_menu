@@ -32,17 +32,22 @@
  * The line cache
  *-------------------------------------------------------------------------*/
 
-static uint16_t sig_fnv(const char *s, size_t n)
+/* Fletcher-16, and no multiply in it: this runs over every byte of every row,
+   and an MSP430 without a hardware multiplier pays a software routine for each
+   one. The fold is the mod-255 reduction written without a branch. */
+static uint16_t sig_row(const char *s, size_t n)
 {
-    uint32_t h = 2166136261u;
+    uint16_t a = 0xFFu, b = 0xFFu;
     uint16_t r;
     size_t   i;
 
     for (i = 0u; i < n; ++i) {
-        h ^= (uint32_t)((unsigned char)s[i]);
-        h *= 16777619u;
+        a = (uint16_t)(a + (unsigned char)s[i]);
+        a = (uint16_t)((a & 0xFFu) + (a >> 8));
+        b = (uint16_t)(b + a);
+        b = (uint16_t)((b & 0xFFu) + (b >> 8));
     }
-    r = (uint16_t)(((h >> 16) ^ h) & 0xFFFFu);
+    r = (uint16_t)((b << 8) | a);
     return (r == 0u) ? 1u : r; /* 0 means "never painted" */
 }
 
@@ -81,6 +86,9 @@ static void line_begin(atc_menu_ctx_t *c, buf_t *b, unsigned row,
     bstr(b, "\x1b[");
     bu32(b, row);
     bstr(b, ";1H");
+    /* The address is this row's own and never varies, so the signature starts
+       after it. The stripe that follows does vary — a page turn can flip it. */
+    b->sig = b->len;
     bstr(b, SGR_RESET);
     bstr(b, sgr);
     b->body = b->len;
@@ -113,7 +121,7 @@ static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
         return;
     }
 
-    sig = sig_fnv(b->p, b->len);
+    sig = sig_row(b->p + b->sig, b->len - b->sig);
     if (c->row_sig[row - 1u] == sig)
         return;
     if (!save_cursor(c))
@@ -269,7 +277,8 @@ void row_item(atc_menu_ctx_t *c, unsigned item_i, unsigned number,
         char     nb[8];
         buf_t    n;
         unsigned i;
-        n.p = nb; n.cap = sizeof nb; n.len = 0u; n.body = 0u; n.vis = 0u;
+        n.p = nb; n.cap = sizeof nb; n.len = 0u; n.body = 0u; n.sig = 0u;
+        n.vis = 0u;
         bu32(&n, number);
         if (n.len > 4u)
             n.len = 4u;
