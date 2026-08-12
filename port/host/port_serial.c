@@ -1,12 +1,11 @@
+/* SPDX-License-Identifier: MIT */
 /**
  * @file port_serial.c
- * @brief ATC Menu - host serial port (Windows COM / POSIX tty), 8N1, no flow control.
- * @author Ahmet Talha ARDIC
- * @date   2026-07-31
+ * @brief Host serial port, 8N1, no flow control
  */
-#include <string.h>
-
 #include "port_serial.h"
+
+#include <string.h>
 
 #ifdef _WIN32
 
@@ -17,13 +16,13 @@ static HANDLE hser = INVALID_HANDLE_VALUE;
 
 int atc_menu_port_serial_open(const char *dev, unsigned long baud)
 {
-    char path[64];
-    DCB dcb;
+    char         path[64];
+    DCB          dcb;
     COMMTIMEOUTS to;
 
-    if (strlen(dev) > 48)
+    if (strlen(dev) > 48u)
         return 0;
-    /* COM10 and up need the device-namespace prefix; it is harmless for COM1..9 */
+    /* COM10 and up need the device-namespace prefix; COM1..9 tolerate it */
     if (strncmp(dev, "\\\\", 2) != 0)
         sprintf(path, "\\\\.\\%s", dev);
     else
@@ -34,19 +33,14 @@ int atc_menu_port_serial_open(const char *dev, unsigned long baud)
     if (hser == INVALID_HANDLE_VALUE)
         return 0;
 
-    memset(&dcb, 0, sizeof(dcb));
-    dcb.DCBlength = sizeof(dcb);
+    memset(&dcb, 0, sizeof dcb);
+    dcb.DCBlength = sizeof dcb;
     GetCommState(hser, &dcb);
     dcb.BaudRate = baud;
     dcb.ByteSize = 8;
     dcb.Parity = NOPARITY;
     dcb.StopBits = ONESTOPBIT;
     dcb.fBinary = TRUE;
-    dcb.fParity = FALSE;
-    dcb.fOutxCtsFlow = FALSE;
-    dcb.fOutxDsrFlow = FALSE;
-    dcb.fOutX = FALSE;
-    dcb.fInX = FALSE;
     dcb.fDtrControl = DTR_CONTROL_ENABLE;
     dcb.fRtsControl = RTS_CONTROL_ENABLE;
     if (!SetCommState(hser, &dcb)) {
@@ -54,8 +48,8 @@ int atc_menu_port_serial_open(const char *dev, unsigned long baud)
         return 0;
     }
 
-    memset(&to, 0, sizeof(to));
-    to.ReadIntervalTimeout = MAXDWORD;  /* non-blocking reads */
+    memset(&to, 0, sizeof to);
+    to.ReadIntervalTimeout = MAXDWORD; /* non-blocking reads */
     SetCommTimeouts(hser, &to);
     PurgeComm(hser, PURGE_RXCLEAR | PURGE_TXCLEAR);
     return 1;
@@ -69,7 +63,7 @@ void atc_menu_port_serial_close(void)
     }
 }
 
-int atc_menu_port_serial_sink(void *user, const char *buf, size_t len)
+int atc_menu_port_serial_sink(const char *buf, size_t len, void *user)
 {
     DWORD written;
 
@@ -81,9 +75,9 @@ int atc_menu_port_serial_sink(void *user, const char *buf, size_t len)
 int atc_menu_port_serial_getkey(void)
 {
     unsigned char c;
-    DWORD got;
+    DWORD         got;
 
-    if (ReadFile(hser, &c, 1, &got, NULL) && got == 1)
+    if (ReadFile(hser, &c, 1, &got, NULL) && got == 1u)
         return c;
     return -1;
 }
@@ -100,28 +94,28 @@ static int fd = -1;
 static speed_t to_speed(unsigned long baud)
 {
     switch (baud) {
-    case 9600:   return B9600;
-    case 19200:  return B19200;
-    case 38400:  return B38400;
-    case 57600:  return B57600;
-    case 115200: return B115200;
-    case 230400: return B230400;
-    default:     return 0;
+    case 9600ul:   return B9600;
+    case 19200ul:  return B19200;
+    case 38400ul:  return B38400;
+    case 57600ul:  return B57600;
+    case 115200ul: return B115200;
+    case 230400ul: return B230400;
+    default:       return 0;
     }
 }
 
 int atc_menu_port_serial_open(const char *dev, unsigned long baud)
 {
     struct termios tio;
-    speed_t spd = to_speed(baud);
+    speed_t        spd = to_speed(baud);
 
-    if (!spd)
+    if (spd == 0)
         return 0;
     fd = open(dev, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (fd < 0)
         return 0;
 
-    memset(&tio, 0, sizeof(tio));
+    memset(&tio, 0, sizeof tio);
     tio.c_cflag = CS8 | CREAD | CLOCAL;
     cfsetispeed(&tio, spd);
     cfsetospeed(&tio, spd);
@@ -141,9 +135,10 @@ void atc_menu_port_serial_close(void)
     }
 }
 
-int atc_menu_port_serial_sink(void *user, const char *buf, size_t len)
+/* All of it or none: the menu rebuilds a refused line from its own ESC. */
+int atc_menu_port_serial_sink(const char *buf, size_t len, void *user)
 {
-    size_t done = 0;
+    size_t  done = 0u;
     ssize_t n;
 
     (void)user;
@@ -161,7 +156,7 @@ int atc_menu_port_serial_getkey(void)
 {
     unsigned char c;
 
-    if (read(fd, &c, 1) == 1)
+    if (read(fd, &c, 1u) == 1)
         return c;
     return -1;
 }

@@ -1,0 +1,38 @@
+/* SPDX-License-Identifier: MIT */
+/**
+ * @file build_config.h
+ * @brief What this artifact was compiled with. Generated from
+ *        build_config.h.in by CMake — do not edit.
+ *
+ * Only two knobs exist, and both size buffers inside @ref atc_menu_ctx_t: an
+ * application that overrides one and links a library built with the other has
+ * two different opinions about the size of that struct. Everything else about
+ * the layout — row width, terminal height, how many rows a page shows — is
+ * decided at run time from @ref atc_menu_screen_t, so it can never make two
+ * builds disagree and is not recorded here.
+ *
+ * Check what you are compiling against in one line:
+ *
+ * @code
+ * #include "atc_menu/menu.h"
+ * #include "atc_menu/build_config.h"
+ * ATC_MENU_ASSERT_BUILD_MATCH();   // compile error on a mismatch
+ * @endcode
+ */
+#ifndef ATC_MENU_BUILD_CONFIG_H
+#define ATC_MENU_BUILD_CONFIG_H
+
+/** Nested submenu limit this library was built with. */
+#define ATC_MENU_BUILD_MAX_DEPTH @ATC_MENU_MAX_DEPTH@
+
+/**
+ * @brief Assert at compile time that this translation unit agrees with the
+ *        artifact on every knob that sizes atc_menu_ctx_t.
+ *
+ * Expands to a typedef, so it goes at file scope and only once per file.
+ */
+#define ATC_MENU_ASSERT_BUILD_MATCH() \
+    typedef char atc_menu_build_config_mismatch_[ \
+        (ATC_MENU_MAX_DEPTH == ATC_MENU_BUILD_MAX_DEPTH) ? 1 : -1]
+
+#endif /* ATC_MENU_BUILD_CONFIG_H */

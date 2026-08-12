@@ -1,85 +1,245 @@
+/* SPDX-License-Identifier: MIT */
 /**
  * @file menu_input.c
- * @brief ATC Menu - key handler, line editor, CSI swallower.
- * @author Ahmet Talha ARDIC
- * @date   2026-07-31
+ * @brief One received byte, turned into navigation or a keystroke
+ *
+ * Nothing here paints. A key only moves the context — the page, the pending
+ * prefix, the editor's accumulator — and the next frame is what shows it,
+ * which is what lets an application feed bytes as they arrive and redraw when
+ * it suits.
+ *
+ * An open editor takes the byte first: while one is up, every key belongs to it
+ * and none of the navigation keys are live.
  */
 #include "menu_internal.h"
 
-#define ESC_NONE 0
-#define ESC_GOT  1  /* got ESC, waiting for '[' or 'O' */
-#define ESC_CSI  2  /* inside sequence, waiting for final byte 0x40..0x7E */
-
-/* The byte is handled the moment it arrives - there is no queue to drain, so
- * nothing can be dropped and nothing waits for the next atc_menu_update().
- * The mask matters on C2000, where a `char` is 16 bits wide. */
-void atc_menu_key(atc_menu_ctx_t *ctx, char byte)
+static void go_up(atc_menu_ctx_t *c)
 {
-    unsigned char c = (unsigned char)(byte & 0xFF);
+    if (c->nav_depth == 0u)
+        return;
+    c->nav_depth--;
+    c->pending = 0u;
+    c->msg = NULL;
+}
 
-    if (ctx->esc_state == ESC_GOT) {
-        ctx->esc_state = (c == '[' || c == 'O') ? ESC_CSI : ESC_NONE;
-        return;
-    }
-    if (ctx->esc_state == ESC_CSI) {
-        if (c >= 0x40 && c <= 0x7E)
-            ctx->esc_state = ESC_NONE;
-        return;
-    }
-    if (c == 0x1B) {
-        if (ctx->mode != ATC_MENU_MODE_SELECT) {
-            /* ESC cancels the edit/choice-preview immediately. The cost: an
-             * escape sequence (arrow key) sent while editing also cancels;
-             * its tail bytes are harmless in select mode. */
-            ctx->input_len = 0;
-            ctx->mode = ATC_MENU_MODE_SELECT;
-            ctx->msg = 0;
-            ctx->prompt_pos = 0;
-        } else {
-            ctx->esc_state = ESC_GOT;
-        }
+/* acc*10 > N means the number cannot be extended, so act on it at once. */
+static void key_digit(atc_menu_ctx_t *c, unsigned d)
+{
+    unsigned n = c->level_numbered;
+    unsigned acc;
+
+    if (c->pending == 0u && d == 0u) {
+        go_up(c);
         return;
     }
 
-    if (c == '\n' && ctx->last_cr) {  /* swallow LF of CRLF */
-        ctx->last_cr = 0;
+    acc = (unsigned)c->pending * 10u + d;
+    if (acc > n)
+        acc = d;
+    if (acc == 0u || acc > n) {
+        /* Say so rather than swallow it: silence reads as a dropped keystroke,
+           and on a serial line that is the first thing suspected. */
+        c->pending = 0u;
+        c->msg = "no such item";
         return;
     }
-    ctx->last_cr = (c == '\r');
-
-    ctx->msg = 0;
-
-    if (c == '\r' || c == '\n') {
-        atc_menu_enter(ctx);
-    } else if (c == 0x03) {  /* Ctrl-C: cancel edit / clear input */
-        ctx->input_len = 0;
-        ctx->mode = ATC_MENU_MODE_SELECT;
-    } else if (c == 0x08 || c == 0x7F) {
-        if (ctx->input_len)
-            ctx->input_len--;
-    } else if (c >= 0x20 && c <= 0x7E) {
-        if (ctx->mode == ATC_MENU_MODE_SELECT) {
-            if (c >= '0' && c <= '9') {
-                if (c == '0' && ctx->input_len == 0) {
-                    atc_menu_cmd(ctx, '0');
-                } else if (ctx->input_len < ATC_MENU_CFG_INPUT_BUF - 1) {
-                    ctx->input[ctx->input_len++] = (char)c;
-                    atc_menu_select_try(ctx);  /* acts once unambiguous */
-                }
-            } else if (ctx->input_len == 0 &&
-                       (c == 'b' || c == 'r' || c == '?' ||
-                        c == 'n' || c == 'p' || c == 'i')) {
-                atc_menu_cmd(ctx, (char)c);
-            }
-            /* anything else is ignored in select mode */
-        } else if (ctx->mode == ATC_MENU_MODE_CHOICE) {
-            atc_menu_choice_next(ctx);
-        } else if (ctx->input_len < ATC_MENU_CFG_INPUT_BUF - 1) {
-            ctx->input[ctx->input_len++] = (char)c;
-        }
+    if (acc * 10u > n) {
+        c->act = (unsigned char)acc;
+        c->pending = 0u;
     } else {
-        return;  /* other control bytes: no prompt redraw */
+        c->pending = (unsigned char)acc;
+    }
+}
+
+/*---------------------------------------------------------------------------
+ * Inside an editor
+ *-------------------------------------------------------------------------*/
+
+static int digit_value(int ch, unsigned base)
+{
+    if (ch >= '0' && ch <= '9')
+        return ch - '0';
+    if (base == 16u) {
+        if (ch >= 'a' && ch <= 'f')
+            return ch - 'a' + 10;
+        if (ch >= 'A' && ch <= 'F')
+            return ch - 'A' + 10;
+    }
+    return -1;
+}
+
+static void key_text(atc_menu_ctx_t *c, int ch)
+{
+    char *t = edit_text(c);
+
+    if (ch == '\r' || ch == '\n') {
+        c->flags |= F_COMMIT;
+        return;
+    }
+    if (ch == 0x1b) {
+        end_edit(c);
+        return;
+    }
+    if (ch == 0x08 || ch == 0x7f) {
+        if (c->edit_len > 0u)
+            t[--c->edit_len] = '\0';
+        return;
+    }
+    if (ch >= 0x20 && ch < 0x7f && c->edit_len < text_room(c)) {
+        t[c->edit_len++] = (char)ch;
+        t[c->edit_len] = '\0';
+    }
+}
+
+/* Any printable steps to the next option, Backspace to the previous. acc holds
+   the candidate and edit_base the count the editor opened with, so the stepping
+   wraps here without the widget being in the loop. */
+static void key_choice(atc_menu_ctx_t *c, int ch)
+{
+    unsigned n = c->edit_base;
+
+    if (ch == '\r' || ch == '\n')
+        c->flags |= F_COMMIT;
+    else if (ch == 0x1b)
+        end_edit(c);
+    else if (n == 0u)
+        return;
+    else if (ch == 0x08 || ch == 0x7f)
+        c->acc = (c->acc == 0u) ? n - 1u : c->acc - 1u;
+    else if (ch >= 0x20 && ch < 0x7f)
+        c->acc = (c->acc + 1u) % n;
+}
+
+static void key_edit(atc_menu_ctx_t *c, int ch)
+{
+    unsigned base = c->edit_base;
+    int      d;
+
+    if ((c->flags & F_TEXT) != 0u) {
+        key_text(c, ch);
+        return;
+    }
+    if ((c->flags & F_CHOICE) != 0u) {
+        key_choice(c, ch);
+        return;
     }
 
-    ctx->prompt_pos = 0;  /* echo */
+    if (ch == '\r' || ch == '\n') {
+        c->flags |= F_COMMIT;
+        return;
+    }
+    if (ch == 0x1b) {
+        end_edit(c);
+        return;
+    }
+    if (ch == 0x08 || ch == 0x7f) {
+        if (c->edit_frac != NO_FRAC && c->edit_frac > 0u) {
+            c->edit_frac--;
+            c->acc /= base;
+            c->edit_len--;
+        } else if (c->edit_frac == 0u) {
+            c->edit_frac = NO_FRAC;
+        } else if (c->edit_len > 0u) {
+            c->acc /= base;
+            c->edit_len--;
+        } else {
+            c->flags &= (uint16_t)~F_NEG;
+        }
+        c->flags &= (uint16_t)~F_OVF;
+        return;
+    }
+    if (ch == '-' && c->acc == 0u && c->edit_frac == NO_FRAC) {
+        c->flags ^= F_NEG;
+        return;
+    }
+    if (ch == '.' && base == 10u && c->edit_dec > 0u && c->edit_frac == NO_FRAC) {
+        c->edit_frac = 0u;
+        return;
+    }
+
+    d = digit_value(ch, base);
+    if (d < 0)
+        return;
+    if (c->edit_frac != NO_FRAC && c->edit_frac >= c->edit_dec)
+        return; /* extra fraction digits would only be truncated */
+    if (c->acc > (0xFFFFFFFFu - (uint32_t)d) / base) {
+        c->flags |= F_OVF;
+        return;
+    }
+    c->acc = c->acc * base + (uint32_t)d;
+    /* Leading zeros leave acc alone, so nothing but this bounds the count. */
+    if (c->edit_len < 254u)
+        c->edit_len++;
+    if (c->edit_frac != NO_FRAC)
+        c->edit_frac++;
+}
+
+/*---------------------------------------------------------------------------
+ * The one entry point
+ *-------------------------------------------------------------------------*/
+
+void atc_menu_key(atc_menu_ctx_t *c, int byte)
+{
+    if (c == NULL || byte < 0)
+        return;
+
+    if ((c->flags & F_EDIT) != 0u) {
+        key_edit(c, byte);
+        return;
+    }
+
+    c->msg = NULL;
+
+    if (byte >= '0' && byte <= '9') {
+        key_digit(c, (unsigned)(byte - '0'));
+        return;
+    }
+
+    switch (byte) {
+    case '\r':
+    case '\n':
+        if (c->pending != 0u) {
+            c->act = c->pending;
+            c->pending = 0u;
+        }
+        break;
+    case 0x08:
+    case 0x7f:
+        c->pending = 0u;
+        break;
+    case 0x1b:
+        if (c->pending != 0u)
+            c->pending = 0u;
+        else
+            go_up(c);
+        break;
+    case 'r':
+        atc_menu_refresh(c);
+        break;
+    /* Numbers are handed out per page, so a prefix typed against this page
+       means something else on the next one. Paging drops it. */
+    case 'n':
+        c->pending = 0u;
+        if ((unsigned)c->top[c->nav_depth] + c->page_items < c->level_items)
+            c->top[c->nav_depth] =
+                (unsigned char)(c->top[c->nav_depth] + c->page_items);
+        else
+            c->msg = "last page";
+        break;
+    case 'p':
+        c->pending = 0u;
+        if (c->top[c->nav_depth] >= c->page_items)
+            c->top[c->nav_depth] =
+                (unsigned char)(c->top[c->nav_depth] - c->page_items);
+        else
+            c->msg = "first page";
+        break;
+    case 'i':
+        /* No title: the items prompt states its own range and reads page_items
+           live, so it has nothing to snapshot. */
+        begin_edit(c, EDIT_PAGE, 10u, 0u, NULL, NULL);
+        break;
+    default:
+        break;
+    }
 }

@@ -1,0 +1,19 @@
+/* SPDX-License-Identifier: MIT */
+/**
+ * @file version.h
+ * @brief Library version. Generated from version.h.in by CMake — do not edit.
+ *
+ * MAJOR.MINOR.PATCH come from the latest `vMAJOR.MINOR.PATCH` git tag;
+ * ATC_MENU_GIT_DESCRIBE additionally carries commits-since-tag and dirty
+ * state, so a shipped artifact traces back to a commit.
+ */
+#ifndef ATC_MENU_VERSION_H
+#define ATC_MENU_VERSION_H
+
+#define ATC_MENU_VERSION_MAJOR  @PROJECT_VERSION_MAJOR@
+#define ATC_MENU_VERSION_MINOR  @PROJECT_VERSION_MINOR@
+#define ATC_MENU_VERSION_PATCH  @PROJECT_VERSION_PATCH@
+#define ATC_MENU_VERSION_STRING "@PROJECT_VERSION@"
+#define ATC_MENU_GIT_DESCRIBE   "@ATC_MENU_GIT_DESCRIBE@"
+
+#endif /* ATC_MENU_VERSION_H */

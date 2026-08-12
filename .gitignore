@@ -1,4 +1,26 @@
+# Build output
 build/
-test/menu_tests
-test/menu_tests.exe
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+Makefile
+compile_commands.json
+
+# Compiler artefacts
 *.o
+*.a
+*.so
+*.su
+*.gcda
+*.gcno
+*.gcov
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
