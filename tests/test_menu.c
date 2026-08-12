@@ -1087,7 +1087,7 @@ static void t_no_style_changes_nothing(void)
     atc_menu_uint16_ro(&C, "Hz", 1000u);
     CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
     CHECK(fake_has(&F,
-        "\x1b[5;1H\x1b[m\x1b[K\x1b[48;5;236m\x1b[1;33m   1   \x1b[22;39mHz"));
+        "\x1b[5;1H\x1b[m\x1b[48;5;236m\x1b[1;33m   1   \x1b[22;39mHz"));
     CHECK(fake_has(&F, "\x1b[1;32m1000\x1b[m"));
 }
 
@@ -1520,7 +1520,7 @@ static void t_fast_fill(void)
     atc_menu_uint16_ro(&C, "Hz", 1000u); /* item 1, striped */
     atc_menu_uint16_ro(&C, "ms", 20u);   /* item 2, plain */
     CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
-    CHECK(fake_has(&F, "ms\x1b[69C"));   /* nothing to paint, so jump it */
+    CHECK(fake_has(&F, "ms\x1b[69X\x1b[69C")); /* blanked, then stepped over */
     CHECK(fake_has(&F, "Hz         "));  /* under a stripe, spaces still */
     spelt = F.len;
 
@@ -1531,7 +1531,7 @@ static void t_fast_fill(void)
     atc_menu_uint16_ro(&C, "ms", 20u);
     CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
     CHECK(fake_has(&F, "Hz \x1b[66b")); /* one cell, then 66 more like it */
-    CHECK(fake_has(&F, "ms\x1b[69C"));  /* the plain row is as it was */
+    CHECK(fake_has(&F, "ms\x1b[69X\x1b[69C")); /* the plain row is as it was */
     CHECK(F.len < spelt);
 
     /* An underline shows in an empty cell, so those columns are cells too. */
@@ -1553,6 +1553,26 @@ static void t_fast_fill(void)
     atc_menu_uint16_ro(&C, "ms", 20u);
     CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
     CHECK(fake_has(&F, "ms         ")); /* and spaces when REP is not offered */
+}
+
+/* A cell that ends up with something in it is written over, never cleared and
+   then filled: on a slow line the gap between the two is a visible blink. */
+static void t_a_changed_row_does_not_blink(void)
+{
+    setup();
+    atc_menu_frame_begin(&C);
+    atc_menu_uint16_ro(&C, "Hz", 1000u);
+    atc_menu_uint16_ro(&C, "ms", 20u);
+    CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
+
+    fake_reset(&F);
+    atc_menu_frame_begin(&C);
+    atc_menu_uint16_ro(&C, "Hz", 1001u);
+    atc_menu_uint16_ro(&C, "ms", 21u);
+    CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
+    CHECK(fake_has(&F, "1001"));
+    CHECK(fake_has(&F, "21"));
+    CHECK(!fake_has(&F, "\x1b[K")); /* neither row blanked itself first */
 }
 
 /* ---- fuzz ------------------------------------------------------------- */
@@ -2050,6 +2070,7 @@ int main(void)
     t_long_message_is_clipped();
     t_static_labels();
     t_fast_fill();
+    t_a_changed_row_does_not_blink();
     t_fuzz_keys();
 
     printf("%d checks, %d failures\n", checks, failures);

@@ -163,14 +163,20 @@ string that is never rewritten — and their addresses stand in for their text.
 A label built with `sprintf` into one scratch buffer breaks that promise: the
 address holds still while the text changes, and the row goes stale until `r`.
 
-Most of what a row still weighs is the gap between label and value. The line is
-cleared on the way in rather than on the way out, so what the row does not write
-is known to be blank and the gap is a cursor move — six bytes instead of sixty.
-A gap under a stripe or an underline does have to be cells, and those are the
-rows that stay expensive: `atc_menu_fast_fill(c, true)` says the terminal can
-repeat a character, and one goes out in 72 bytes rather than 129. That is
-ECMA-48 REP: xterm and the VTE terminals have it, `screen` and `tmux` do not,
-which is why it is off by default.
+Most of what a row still weighs is the gap between label and value. It goes out
+as two escapes — blank those columns where they stand, then step over them —
+twelve bytes instead of sixty, and an unstriped row costs 62. A gap under a
+stripe or an underline has to be real cells, and those are the rows that stay
+expensive: `atc_menu_fast_fill(c, true)` says the terminal can repeat a
+character, and one goes out in 69 bytes rather than 129. That is ECMA-48 REP:
+xterm and the VTE terminals have it, `screen` and `tmux` do not, which is why it
+is off by default.
+
+**A cell is written over, never cleared and then filled.** Only the columns a
+row leaves empty are blanked, and only where they end up empty. Clearing the
+line first would be three bytes and one instruction cheaper, but at 115200 the
+rest of the row takes 5 ms to arrive: long enough for the eye to catch the line
+empty, and a row whose value moves every frame flickers.
 
 `rows` is the terminal, not the menu: 6 to 8 rows go to the chrome (a banner
 line with nothing in it is not painted and not charged) and the items get the
@@ -201,8 +207,8 @@ Caller-owned except the context. Measured with 32-bit pointers, 80×24:
 
 | RAM | Bytes | | Flash, `gcc -Os -m32`, `.text` | Bytes |
 |---|---|---|---|---|
-| `atc_menu_ctx_t` | 100 | | whole library | 13 280 |
-| `buf` | 198 | | a 12-row menu, `--gc-sections` | 10 597 |
+| `atc_menu_ctx_t` | 100 | | whole library | 13 342 |
+| `buf` | 198 | | a 12-row menu, `--gc-sections` | 10 659 |
 | `sig[24]` | 48 | | `.bss` + `.data` | 0 |
 | **total** | **346** | | peak stack, deepest widget path | 476 |
 
@@ -221,10 +227,12 @@ has `CHAR_BIT == 16` and no `uint8_t` at all. A C2000 sink must mask each byte
 with `& 0xFF` on the way out.
 
 Everything the layout rests on is VT100 — `ESC[r;cH`, `ESC[K`, `ESC[nC`,
-`ESC[2J`, `ESC 7` / `ESC 8`. Colour, the stripe and the hidden cursor are not,
-and are the part that degrades: a terminal without them shows a plainer menu of
-the same shape. `atc_menu_fast_fill` adds `ESC[nb` to that list and is the one
-thing that would misdraw rather than degrade, which is why it is opt-in.
+`ESC[2J`, `ESC 7` / `ESC 8` — plus `ESC[nX` to blank a run of columns, which is
+VT220 and is implemented even by the terminals that have no REP (`screen`
+blanks the run correctly). Colour, the stripe and the hidden cursor are not, and
+are the part that degrades: a terminal without them shows a plainer menu of the
+same shape. `atc_menu_fast_fill` adds `ESC[nb` to that list and is the one thing
+that would misdraw rather than degrade, which is why it is opt-in.
 
 ## Build
 

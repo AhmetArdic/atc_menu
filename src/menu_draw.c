@@ -147,9 +147,6 @@ static void line_begin(atc_menu_ctx_t *c, buf_t *b, unsigned row,
     /* the address never varies; the stripe after it can, on a page turn */
     b->sig = b->len;
     bstr(b, SGR_RESET);
-    /* Cleared going in, not coming out: what the row does not write is then
-       known blank, so a gap can be jumped instead of spelled out. */
-    bstr(b, "\x1b[K");
     bstr(b, sgr);
     b->body = b->len;
     b->vis = 0u;
@@ -171,29 +168,30 @@ static void bcsi(buf_t *b, size_t n, char final)
     b->vis = vis;
 }
 
-/* Columns a row leaves empty: stepped over when nothing was going to be painted
-   there, repeated when a stripe or an underline has to reach across them, and
-   spelled out in spaces when the terminal cannot repeat. */
+/* Columns a row leaves empty: blanked where they stay blank, painted where a
+   stripe or an underline reaches across them, never cleared and then filled. */
 static void bskip(const atc_menu_ctx_t *c, buf_t *b, size_t n, bool fill)
 {
-    bool paint = fill || b->solid;
-
-    if (n <= 5u) { /* shorter than any escape that would replace it */
-        bpad(b, n);
-    } else if (!paint) {
+    if (fill || b->solid) {
+        if (n > 6u && (c->flags & F_FAST_FILL) != 0u) {
+            /* one cell to wear the row's colours, and n-1 more like it */
+            bput(b, ' ');
+            bcsi(b, n - 1u, 'b');
+            b->vis += n - 1u;
+        } else {
+            bpad(b, n);
+        }
+    } else if (n > 12u) { /* the two escapes together are shorter than that */
+        bcsi(b, n, 'X');  /* blanked where they stand, then stepped over */
         bcsi(b, n, 'C');
         b->vis += n;
-    } else if ((c->flags & F_FAST_FILL) != 0u) {
-        bput(b, ' '); /* one to wear the row's colours, and n-1 more like it */
-        bcsi(b, n - 1u, 'b');
-        b->vis += n - 1u;
     } else {
         bpad(b, n);
     }
 }
 
-/* trim drops the spaces a row ends on; a row that carries its stripe to the
-   menu's edge filled them on purpose. key of 0 means sign the bytes. */
+/* trim drops the spaces a row ends on and clears what it used to reach; a row
+   that fills the line has nothing beyond it. key of 0 means sign the bytes. */
 static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
                      bool trim, uint16_t key)
 {
@@ -209,6 +207,9 @@ static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
 
     if (styled)
         bstr(b, SGR_RESET);
+    /* after the reset, so the cells blank rather than take the row's colours */
+    if (trim && b->vis < (size_t)c->cols)
+        bstr(b, "\x1b[K");
 
     if (b->len > b->cap) {
         c->status = (signed char)ATC_MENU_ERR_PARAM;

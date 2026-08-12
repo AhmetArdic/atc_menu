@@ -97,10 +97,10 @@ typedef struct {
 /**
  * @brief Bytes one painted row can take
  *
- * ESC[255;1H(8) + ESC[m(3) + ESC[K(3) + ESC[48;5;236m(11) + ESC[1;33m(7)
- * + ESC[22;39m(8) + ESC[1;3;4;7;31m(13) + cols + ESC[22;31m(8) + ESC[m(3)
- * + NUL(1). A gap's escape is only ever used when it is shorter than the
- * spaces it replaces, so it cannot push a row past this.
+ * ESC[255;1H(8) + ESC[m(3) + ESC[48;5;236m(11) + ESC[1;33m(7) + ESC[22;39m(8)
+ * + ESC[1;3;4;7;31m(13) + cols + ESC[22;31m(8) + ESC[m(3) + ESC[K(3) + NUL(1).
+ * A gap's escapes are only ever used when they are shorter than the spaces they
+ * replace, so they cannot push a row past this.
  *
  * @param cols terminal width
  */
