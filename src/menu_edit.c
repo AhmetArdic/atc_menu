@@ -4,8 +4,7 @@
  * @brief The editor's state and its slice of the caller's buffer
  *
  * One editor at a time, and it lives past the frame that opened it: the title
- * and the keystrokes sit behind the row half of the caller's buffer, so a
- * label and a value need only stay valid for the widget call that showed them.
+ * and the keystrokes sit behind the row half of the caller's buffer.
  *
  * F_EDIT says an editor is open; F_TEXT and F_CHOICE say which of the three it
  * is. The number editor is the one with no flag of its own.
@@ -14,9 +13,7 @@
 
 #include <string.h>
 
-/*---------------------------------------------------------------------------
- * The title
- *-------------------------------------------------------------------------*/
+/*--- The title --------------------------------------------------------------*/
 
 /* Half the scratch, less the terminator: what a title may take before it starts
    eating into what the user can type. */
@@ -25,16 +22,9 @@ static size_t title_max(const atc_menu_ctx_t *c)
     return edit_room(c) / 2u - 1u;
 }
 
-/* "Freq (Hz) [1000]" — the prompt says which row it belongs to and what the row
-   held when it opened, so a value can be checked against the old one without
-   leaving the editor. Both strings belong to the application and need only
-   outlive the widget call, hence the copy. The bracket is reserved first and
-   the label takes what is left: a truncated label still reads, a truncated
-   value would just mislead.
- *
- * Writes the title and its terminator, leaving the keystrokes to start at
- * edit_head.
- */
+/* "Freq (Hz) [1000]" — which row, and what it held when the editor opened.
+   Copied because both strings need only outlive the widget call. The bracket is
+   reserved first: a truncated label still reads, a truncated value misleads. */
 void set_edit_title(atc_menu_ctx_t *c, const char *label, const char *value)
 {
     char  *t = edit_area(c);
@@ -69,9 +59,7 @@ void set_edit_title(atc_menu_ctx_t *c, const char *label, const char *value)
     t[c->edit_head] = '\0';
 }
 
-/*---------------------------------------------------------------------------
- * Opening and closing
- *-------------------------------------------------------------------------*/
+/*--- Opening and closing ----------------------------------------------------*/
 
 void begin_edit(atc_menu_ctx_t *c, unsigned index, unsigned base,
                 unsigned decimals, const char *label, const char *value)
@@ -108,9 +96,8 @@ void begin_edit_text(atc_menu_ctx_t *c, unsigned index, const char *label,
     set_edit_title(c, label, value);
 }
 
-/* acc is the candidate index and edit_base the number of choices, which is what
-   lets key_choice() wrap on its own. It opens on the option after the committed
-   one, so the keystroke that opened the editor is never a wasted step. */
+/* acc is the candidate index and edit_base the count, which is what lets
+   key_choice() wrap on its own. Opens on the option after the committed one. */
 void begin_edit_choice(atc_menu_ctx_t *c, unsigned index, unsigned first,
                        unsigned count, const char *label, const char *value)
 {
@@ -124,9 +111,7 @@ void begin_edit_choice(atc_menu_ctx_t *c, unsigned index, unsigned first,
     set_edit_title(c, label, value);
 }
 
-/*---------------------------------------------------------------------------
- * Handing the value over, and getting it back
- *-------------------------------------------------------------------------*/
+/*--- Handing the value over, and getting it back ----------------------------*/
 
 bool commit_ready(atc_menu_ctx_t *c, unsigned index)
 {
@@ -145,9 +130,8 @@ void deliver(atc_menu_ctx_t *c)
     c->msg = NULL; /* a refusal this entry has answered; reject() sets its own */
 }
 
-/* Refused by the library itself — out of the row's range, or too long for the
-   caller's buffer. Same outcome as atc_menu_reject(), without the round trip:
-   the editor stays open over what was typed. */
+/* Refused by the library itself: out of range, or too long for the caller's
+   buffer. Same outcome as atc_menu_reject(), without the round trip. */
 bool refuse(atc_menu_ctx_t *c, const char *msg)
 {
     c->flags &= (uint16_t)~F_COMMIT;

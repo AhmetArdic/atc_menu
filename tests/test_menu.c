@@ -366,8 +366,8 @@ static void t_shrink_pulls_the_footer_up(void)
     run_n(2u);                                 /* items on rows 5..6 */
     CHECK(fake_has(&F, "\x1b[7;1H"));          /* rule moved up to 7 */
     CHECK(fake_has(&F, "Select> _"));          /* prompt is now row 10 */
-    CHECK(fake_has(&F, "\x1b[11;1H\x1b[0m\x1b[K")); /* and 11 is blanked */
-    CHECK(fake_has(&F, "\x1b[14;1H\x1b[0m\x1b[K"));
+    CHECK(fake_has(&F, "\x1b[11;1H\x1b[m\x1b[K")); /* and 11 is blanked */
+    CHECK(fake_has(&F, "\x1b[14;1H\x1b[m\x1b[K"));
     CHECK(!fake_has(&F, "\x1b[16;1H"));        /* already blank, not repainted */
 }
 
@@ -1087,8 +1087,8 @@ static void t_no_style_changes_nothing(void)
     atc_menu_uint16_ro(&C, "Hz", 1000u);
     CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
     CHECK(fake_has(&F,
-        "\x1b[5;1H\x1b[0m\x1b[48;5;236m\x1b[1;33m   1   \x1b[22;39mHz"));
-    CHECK(fake_has(&F, "\x1b[1;32m1000\x1b[0m\x1b[K"));
+        "\x1b[5;1H\x1b[m\x1b[K\x1b[48;5;236m\x1b[1;33m   1   \x1b[22;39mHz"));
+    CHECK(fake_has(&F, "\x1b[1;32m1000\x1b[m"));
 }
 
 static void t_dim_outranks_style(void)
@@ -1507,6 +1507,52 @@ static void t_static_labels(void)
     atc_menu_bool_ro(&C, "Lamp", led);
     atc_menu_frame_end(&C);
     CHECK(fake_has(&F, "Lamp"));
+}
+
+/* The gap between label and value is 61 - strlen(label) + 12 - strlen(value)
+   columns wide; what a row does with it is the whole of this. */
+static void t_fast_fill(void)
+{
+    size_t spelt;
+
+    setup();
+    atc_menu_frame_begin(&C);
+    atc_menu_uint16_ro(&C, "Hz", 1000u); /* item 1, striped */
+    atc_menu_uint16_ro(&C, "ms", 20u);   /* item 2, plain */
+    CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
+    CHECK(fake_has(&F, "ms\x1b[69C"));   /* nothing to paint, so jump it */
+    CHECK(fake_has(&F, "Hz         "));  /* under a stripe, spaces still */
+    spelt = F.len;
+
+    fake_reset(&F);
+    atc_menu_fast_fill(&C, true); /* which repaints what is already up */
+    atc_menu_frame_begin(&C);
+    atc_menu_uint16_ro(&C, "Hz", 1000u);
+    atc_menu_uint16_ro(&C, "ms", 20u);
+    CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
+    CHECK(fake_has(&F, "Hz \x1b[66b")); /* one cell, then 66 more like it */
+    CHECK(fake_has(&F, "ms\x1b[69C"));  /* the plain row is as it was */
+    CHECK(F.len < spelt);
+
+    /* An underline shows in an empty cell, so those columns are cells too. */
+    fake_reset(&F);
+    atc_menu_frame_begin(&C);
+    atc_menu_item_style(&C, ATC_MENU_UNDERLINE);
+    atc_menu_uint16_ro(&C, "Hz", 1001u);
+    atc_menu_item_style(&C, ATC_MENU_UNDERLINE);
+    atc_menu_uint16_ro(&C, "ms", 20u);
+    CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
+    CHECK(fake_has(&F, "ms \x1b[68b")); /* repeated, not stepped over */
+
+    fake_reset(&F);
+    atc_menu_fast_fill(&C, false);
+    atc_menu_frame_begin(&C);
+    atc_menu_item_style(&C, ATC_MENU_UNDERLINE);
+    atc_menu_uint16_ro(&C, "Hz", 1001u);
+    atc_menu_item_style(&C, ATC_MENU_UNDERLINE);
+    atc_menu_uint16_ro(&C, "ms", 20u);
+    CHECK(atc_menu_frame_end(&C) == ATC_MENU_OK);
+    CHECK(fake_has(&F, "ms         ")); /* and spaces when REP is not offered */
 }
 
 /* ---- fuzz ------------------------------------------------------------- */
@@ -2003,6 +2049,7 @@ int main(void)
     t_narrow_footer_drops_hints();
     t_long_message_is_clipped();
     t_static_labels();
+    t_fast_fill();
     t_fuzz_keys();
 
     printf("%d checks, %d failures\n", checks, failures);

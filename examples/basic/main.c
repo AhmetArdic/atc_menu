@@ -374,6 +374,9 @@ int main(int argc, char **argv)
     }
     /* every label here is a literal, so an idle frame need not read one back */
     atc_menu_static_labels(&c, true);
+    /* xterm and the terminals that follow it repeat a character on demand, so a
+       striped row need not spell its gap out in spaces */
+    atc_menu_fast_fill(&c, true);
     atc_menu_term_begin(&c);
 
     while (running) {

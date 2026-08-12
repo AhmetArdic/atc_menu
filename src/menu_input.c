@@ -4,9 +4,7 @@
  * @brief One received byte, turned into navigation or a keystroke
  *
  * Nothing here paints. A key only moves the context — the page, the pending
- * prefix, the editor's accumulator — and the next frame is what shows it,
- * which is what lets an application feed bytes as they arrive and redraw when
- * it suits.
+ * prefix, the editor's accumulator — and the next frame is what shows it.
  *
  * An open editor takes the byte first: while one is up, every key belongs to it
  * and none of the navigation keys are live.
@@ -51,9 +49,7 @@ static void key_digit(atc_menu_ctx_t *c, unsigned d)
     }
 }
 
-/*---------------------------------------------------------------------------
- * Inside an editor
- *-------------------------------------------------------------------------*/
+/*--- Inside an editor -------------------------------------------------------*/
 
 static int digit_value(int ch, unsigned base)
 {
@@ -91,9 +87,8 @@ static void key_text(atc_menu_ctx_t *c, int ch)
     }
 }
 
-/* Any printable steps to the next option, Backspace to the previous. acc holds
-   the candidate and edit_base the count the editor opened with, so the stepping
-   wraps here without the widget being in the loop. */
+/* Any printable steps to the next option, Backspace to the previous; acc and
+   edit_base are enough to wrap here, without the widget in the loop. */
 static void key_choice(atc_menu_ctx_t *c, int ch)
 {
     unsigned n = c->edit_base;
@@ -174,9 +169,7 @@ static void key_edit(atc_menu_ctx_t *c, int ch)
         c->edit_frac++;
 }
 
-/*---------------------------------------------------------------------------
- * The one entry point
- *-------------------------------------------------------------------------*/
+/*--- The one entry point ----------------------------------------------------*/
 
 void atc_menu_key(atc_menu_ctx_t *c, int byte)
 {

@@ -4,20 +4,15 @@
  * @brief Where a row goes and what it looks like
  *
  * The only file that names a screen row or an SGR sequence. Callers address an
- * item by the index it was declared with; the banner's height and the page
- * offset turn that into a row here, so nothing above this layer has to know how
- * tall the chrome came out this frame.
- *
- * A row is signed by what it is drawn from rather than by the bytes it would
- * come out as, and built only if that moved — so an idle frame lays out
- * nothing, an unchanged value is never formatted, and a row goes out only when
- * it changed, which is what keeps a 9600-baud link quiet between keystrokes.
+ * item by its declaration index; the banner's height and the page offset turn
+ * that into a row here. A row is signed by what it is drawn from, not by the
+ * bytes it becomes, and built only if that moved.
  */
 #include "menu_internal.h"
 
 #include <string.h>
 
-#define SGR_RESET "\x1b[0m"
+#define SGR_RESET "\x1b[m" /* an omitted parameter is 0, and a byte shorter */
 #define SGR_ZEBRA "\x1b[48;5;236m"
 #define SGR_NUM   "\x1b[1;33m"
 #define SGR_TEXT  "\x1b[22;39m"
@@ -29,9 +24,7 @@
 #define SGR_OWNER "\x1b[37m"
 #define SGR_HINT  "\x1b[90m"
 
-/*---------------------------------------------------------------------------
- * The line cache
- *-------------------------------------------------------------------------*/
+/*--- The line cache ---------------------------------------------------------*/
 
 static uint16_t sig_bytes(uint16_t sig, const char *s, size_t n)
 {
@@ -47,7 +40,7 @@ static uint16_t sig_end(uint16_t sig)
     return (sig == 0u) ? 1u : sig; /* 0 means "never painted" */
 }
 
-/* For what the library compares rather than reads: an address, not a string. */
+/* an address, not the string behind it */
 static uint16_t sig_ptr(uint16_t sig, const void *p)
 {
     const void *q = p;
@@ -85,8 +78,7 @@ static uint16_t item_key(const atc_menu_ctx_t *c, const slot_t *s,
     unsigned style = s->dim ? 0u : s->style;
     uint16_t k;
 
-    /* A scalar folded in whole costs what one of its bytes would through the
-       hash: number and style share a word, stripe and the dim bit the next. */
+    /* scalars fold in whole: a word costs what one of its bytes would */
     k = sig_mix(vkey, (uint16_t)(s->num + (style << 8)));
     k = sig_mix(k, (uint16_t)((s->item_i & 1u) + (s->dim ? 2u : 0u)));
     if (label != NULL)
@@ -95,8 +87,8 @@ static uint16_t item_key(const atc_menu_ctx_t *c, const slot_t *s,
     return sig_end(k);
 }
 
-/* Everything the chrome is drawn from. An open editor is the exception: its
-   prompt moves with every keystroke, so frame_end never caches it. */
+/* Everything the chrome is drawn from. frame_end never caches it while an
+   editor is open: the prompt moves with every keystroke. */
 uint16_t chrome_key(const atc_menu_ctx_t *c)
 {
     uint16_t k;
@@ -131,9 +123,8 @@ static bool save_cursor(atc_menu_ctx_t *c)
     return true;
 }
 
-/* Pairs with the save the frame's first painted row did: the cursor goes back
-   where the application left it, so the menu can share the terminal with
-   whatever else is printing. */
+/* Pairs with the save the frame's first painted row did, so the menu can share
+   the terminal with whatever else prints. */
 void restore_cursor(atc_menu_ctx_t *c)
 {
     if ((c->flags & F_SAVED) == 0u)
@@ -153,28 +144,64 @@ static void line_begin(atc_menu_ctx_t *c, buf_t *b, unsigned row,
     bstr(b, "\x1b[");
     bu32(b, row);
     bstr(b, ";1H");
-    /* The address is this row's own and never varies, so the signature starts
-       after it. The stripe that follows does vary — a page turn can flip it. */
+    /* the address never varies; the stripe after it can, on a page turn */
     b->sig = b->len;
     bstr(b, SGR_RESET);
+    /* Cleared going in, not coming out: what the row does not write is then
+       known blank, so a gap can be jumped instead of spelled out. */
+    bstr(b, "\x1b[K");
     bstr(b, sgr);
     b->body = b->len;
     b->vis = 0u;
+    b->solid = false;
 }
 
-/* pad_to > 0 fills out to that column before closing; a striped row needs it so
-   the background stops at the menu edge rather than the terminal's. A caller
-   that signed the row's inputs passes that key instead of 0. */
+/* ESC[<n><final>, three digits enough since cols is a byte. Not bu32: its
+   ten-digit scratch would sit under the deepest path a row takes. */
+static void bcsi(buf_t *b, size_t n, char final)
+{
+    size_t   vis = b->vis;
+    unsigned d;
+
+    bput(b, '\x1b');
+    bput(b, '[');
+    for (d = (n > 99u) ? 100u : ((n > 9u) ? 10u : 1u); d > 0u; d /= 10u)
+        bput(b, (char)('0' + (int)((n / d) % 10u)));
+    bput(b, final);
+    b->vis = vis;
+}
+
+/* Columns a row leaves empty: stepped over when nothing was going to be painted
+   there, repeated when a stripe or an underline has to reach across them, and
+   spelled out in spaces when the terminal cannot repeat. */
+static void bskip(const atc_menu_ctx_t *c, buf_t *b, size_t n, bool fill)
+{
+    bool paint = fill || b->solid;
+
+    if (n <= 5u) { /* shorter than any escape that would replace it */
+        bpad(b, n);
+    } else if (!paint) {
+        bcsi(b, n, 'C');
+        b->vis += n;
+    } else if ((c->flags & F_FAST_FILL) != 0u) {
+        bput(b, ' '); /* one to wear the row's colours, and n-1 more like it */
+        bcsi(b, n - 1u, 'b');
+        b->vis += n - 1u;
+    } else {
+        bpad(b, n);
+    }
+}
+
+/* trim drops the spaces a row ends on; a row that carries its stripe to the
+   menu's edge filled them on purpose. key of 0 means sign the bytes. */
 static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
-                     size_t pad_to, uint16_t key)
+                     bool trim, uint16_t key)
 {
     uint16_t sig;
 
-    if (pad_to > 0u) {
-        while (b->vis < pad_to)
-            bput(b, ' ');
-    } else {
-        while (b->len > b->body && b->len <= b->cap && b->p[b->len - 1u] == ' ') {
+    if (trim) {
+        while (b->len > b->body && b->len <= b->cap &&
+               b->p[b->len - 1u] == ' ') {
             b->len--;
             b->vis--;
         }
@@ -182,7 +209,6 @@ static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
 
     if (styled)
         bstr(b, SGR_RESET);
-    bstr(b, "\x1b[K");
 
     if (b->len > b->cap) {
         c->status = (signed char)ATC_MENU_ERR_PARAM;
@@ -204,12 +230,9 @@ static void line_end(atc_menu_ctx_t *c, buf_t *b, unsigned row, bool styled,
     c->row_sig[row - 1u] = sig;
 }
 
-/*---------------------------------------------------------------------------
- * Geometry
- *-------------------------------------------------------------------------*/
+/*--- Geometry ---------------------------------------------------------------*/
 
-/* Once a frame, not per row: every row is placed from here. A banner line with
-   nothing in it is not painted, so it is not charged. */
+/* Once a frame: an empty banner line is not painted, so it is not charged. */
 void measure_head(atc_menu_ctx_t *c)
 {
     unsigned n = 0u;
@@ -228,8 +251,6 @@ static unsigned first_item_row(const atc_menu_ctx_t *c)
     return c->head + 3u; /* the banner, then the rule and the breadcrumb */
 }
 
-/* Where a visible item lands: the first item row, offset by how far the item is
-   past the top of the page. */
 static unsigned item_row(const atc_menu_ctx_t *c, unsigned item_i)
 {
     return first_item_row(c) + (item_i - c->top[c->nav_depth]);
@@ -241,8 +262,7 @@ unsigned page_items_max(const atc_menu_ctx_t *c)
     return (unsigned)c->rows - c->head - 6u;
 }
 
-/* The closing rule goes straight after the last item row, not at the bottom of
-   the window, so a level three rows long is three rows tall. */
+/* Straight after the last item, not at the bottom: a short level is short. */
 static unsigned rule_row(const atc_menu_ctx_t *c)
 {
     return first_item_row(c) + c->shown_items;
@@ -257,9 +277,7 @@ static bool row_ok(const atc_menu_ctx_t *c, unsigned row)
     return (c->flags & F_STOP) == 0u && row >= 1u && row <= c->rows;
 }
 
-/*---------------------------------------------------------------------------
- * Item rows
- *-------------------------------------------------------------------------*/
+/*--- Item rows --------------------------------------------------------------*/
 
 /* A style that names nothing emits nothing: a bare ESC[m means ESC[0m, which
    would wipe the colour the row is already wearing. */
@@ -273,6 +291,10 @@ static void bstyle(buf_t *b, unsigned style)
 
     if ((style & 0x0Fu) == 0u && (fg < 1u || fg > 8u))
         return;
+
+    /* an underline or a reverse shows in an empty cell, so gaps become cells */
+    if ((style & (ATC_MENU_UNDERLINE | ATC_MENU_REVERSE)) != 0u)
+        b->solid = true;
 
     bstr(b, "\x1b[");
     for (i = 0u; i < 4u; ++i) {
@@ -293,8 +315,7 @@ static void bstyle(buf_t *b, unsigned style)
     b->vis = vis;
 }
 
-/* The green the value column has always worn, or the application's colour in
-   its place. */
+/* the value column's green, or the application's colour in its place */
 static void bvalue_sgr(buf_t *b, unsigned style)
 {
     unsigned fg = (style >> 4) & 0x0Fu;
@@ -314,8 +335,8 @@ static void bvalue_sgr(buf_t *b, unsigned style)
     b->vis = vis;
 }
 
-/* Signing the inputs recognises an unchanged row without building it, and the
-   answer comes before the value is formatted — the point of asking. */
+/* An unchanged row is recognised without being built, and before its value is
+   formatted. */
 bool row_sign(const atc_menu_ctx_t *c, slot_t *s, const char *label,
               uint16_t vkey)
 {
@@ -361,7 +382,7 @@ void row_item(atc_menu_ctx_t *c, const slot_t *s, const char *label,
         buf_t    n;
         unsigned i;
         n.p = nb; n.cap = sizeof nb; n.len = 0u; n.body = 0u; n.sig = 0u;
-        n.vis = 0u;
+        n.vis = 0u; n.solid = false;
         bu32(&n, number);
         if (n.len > 4u)
             n.len = 4u;
@@ -386,22 +407,22 @@ void row_item(atc_menu_ctx_t *c, const slot_t *s, const char *label,
 
     if (vlen > 0u) {
         size_t i;
-        bpad(&b, lw - used);
-        bpad(&b, VALW - vlen);
-        /* The value column carries the colour, whatever the widget: it is the
-           part of the row that changes, and the eye should land on it. A dim
-           row keeps its one attribute so "unavailable" outranks it. */
+        /* label tail and value room are one gap: most of the row's bytes */
+        bskip(c, &b, (lw - used) + (VALW - vlen), striped);
+        /* the value column carries the colour, unless dim outranks it */
         if (!dim)
             bvalue_sgr(&b, style);
         for (i = 0u; i < vlen; ++i)
             bput(&b, value[i]);
     }
 
-    line_end(c, &b, row, true, striped ? (size_t)c->cols : 0u, s->key);
+    /* the stripe stops at the menu's edge, not the terminal's */
+    if (striped && b.vis < (size_t)c->cols)
+        bskip(c, &b, (size_t)c->cols - b.vis, true);
+    line_end(c, &b, row, true, !striped, s->key);
 }
 
-/* A rule inside the item area. It takes its stripe from the same alternation
-   the rows use, so it sits in the sequence instead of interrupting it. */
+/* A rule inside the item area, striped by the same alternation as the rows. */
 void row_separator(atc_menu_ctx_t *c, unsigned item_i)
 {
     unsigned row = item_row(c, item_i);
@@ -422,17 +443,16 @@ void row_separator(atc_menu_ctx_t *c, unsigned item_i)
     bpad(&b, 3u);
     while (b.vis < (size_t)c->cols - 2u)
         bput(&b, '-');
-    line_end(c, &b, row, true, striped ? (size_t)c->cols : 0u, key);
+    if (striped && b.vis < (size_t)c->cols)
+        bskip(c, &b, (size_t)c->cols - b.vis, true);
+    line_end(c, &b, row, true, !striped, key);
 }
 
-/*---------------------------------------------------------------------------
- * The chrome around them
- *-------------------------------------------------------------------------*/
+/*--- The chrome around them -------------------------------------------------*/
 
-/* "Freq (Hz) [1000]> 50" — which row, what it held, what is being typed over
-   it. A choice has no keystrokes: its candidate is the bracket, rewritten by
-   the widget as the user steps through. The bracket wears the value colour, so
-   it reads as the column it came from rather than as part of the label. */
+/* "Freq (Hz) [1000]> 50" — which row, what it held, what is being typed. A
+   choice has no keystrokes: the bracket is its candidate, and wears the value
+   colour so it reads as the column it came from. */
 static void prompt_editor(atc_menu_ctx_t *c, buf_t *b)
 {
     const char *t = edit_area_c(c);
@@ -460,8 +480,7 @@ static void prompt_editor(atc_menu_ctx_t *c, buf_t *b)
         if ((c->flags & F_NEG) != 0u)
             bput(b, '-');
         if (c->edit_base == 16u && c->edit_len > 0u) {
-            /* Digits typed, but never more than a uint32_t has: leading zeros
-               can push edit_len past eight. */
+            /* leading zeros can push edit_len past what a uint32_t holds */
             bstr(b, "0x");
             bhexdigits(b, c->acc, (c->edit_len > 8u) ? 8u : c->edit_len);
         } else if (c->edit_frac != NO_FRAC) {
@@ -474,19 +493,16 @@ static void prompt_editor(atc_menu_ctx_t *c, buf_t *b)
     }
 }
 
-/* Only the keys that would do something here: at the root there is nowhere to
-   go back to, and on a single page there is no other page. A legend advertising
-   a key that answers nothing is worse than a shorter legend. Each hint also
-   costs two escape sequences on top of its columns, so a narrow line runs out
-   before the list does; one that does not fit is dropped whole, and the order
-   is most-essential first. */
+/* Only the keys that would do something here. Each hint costs two escapes on
+   top of its columns, so a narrow line runs out before the list does; one that
+   does not fit is dropped whole, most-essential first. */
 static void paint_footer(atc_menu_ctx_t *c, unsigned pages)
 {
     static const char *const KEYS[4] = { " 0", "  r", "  n/p", "  i" };
     static const char *const TXT[4] = { " Back", " Refresh", " Page",
                                         " Items" };
-    /* what line_end still has to append: SGR_RESET + ESC[K + NUL */
-    const size_t tail = sizeof SGR_RESET + 3u;
+    /* what line_end still has to append, its NUL counted as slack */
+    const size_t tail = sizeof SGR_RESET;
     unsigned     k;
     buf_t        b;
 
@@ -506,7 +522,7 @@ static void paint_footer(atc_menu_ctx_t *c, unsigned pages)
         bsgr(&b, SGR_HINT);
         bstr(&b, TXT[k]);
     }
-    line_end(c, &b, footer_row(c), true, 0u, 0u);
+    line_end(c, &b, footer_row(c), true, true, 0u);
 }
 
 void paint_chrome(atc_menu_ctx_t *c)
@@ -528,17 +544,14 @@ void paint_chrome(atc_menu_ctx_t *c)
                 bclip(&b, c->info->name, (size_t)c->cols);
             if (c->info->version != NULL) {
                 size_t vlen = strlen(c->info->version);
-                /* vlen sits on the left of the comparison: on the right it
-                   would wrap for a version longer than the line and turn the
-                   padding into an endless loop. */
-                if (vlen < (size_t)c->cols) {
-                    while (b.vis + vlen < (size_t)c->cols)
-                        bput(&b, ' ');
-                }
+                /* b.vis sits on the left: on the right the sum would wrap for a
+                   version longer than the line and skip most of a screen. */
+                if (b.vis + vlen < (size_t)c->cols)
+                    bskip(c, &b, (size_t)c->cols - vlen - b.vis, false);
                 bsgr(&b, SGR_VER);
                 bclip(&b, c->info->version, (size_t)c->cols);
             }
-            line_end(c, &b, row, true, 0u, 0u);
+            line_end(c, &b, row, true, true, 0u);
         }
         row++;
     }
@@ -547,7 +560,7 @@ void paint_chrome(atc_menu_ctx_t *c)
         if (row_ok(c, row)) {
             line_begin(c, &b, row, SGR_OWNER);
             bclip(&b, c->info->owner, (size_t)c->cols);
-            line_end(c, &b, row, true, 0u, 0u);
+            line_end(c, &b, row, true, true, 0u);
         }
         row++;
     }
@@ -556,7 +569,7 @@ void paint_chrome(atc_menu_ctx_t *c)
         line_begin(c, &b, row, SGR_HEAD);
         while (b.vis < (size_t)c->cols)
             bput(&b, '=');
-        line_end(c, &b, row, true, 0u, 0u);
+        line_end(c, &b, row, true, true, 0u);
     }
     row++;
 
@@ -578,14 +591,14 @@ void paint_chrome(atc_menu_ctx_t *c)
             bu32(&b, pages);
             bput(&b, ')');
         }
-        line_end(c, &b, row, true, 0u, 0u);
+        line_end(c, &b, row, true, true, 0u);
     }
 
     if (row_ok(c, rule_row(c))) {
         line_begin(c, &b, rule_row(c), SGR_HEAD);
         while (b.vis < (size_t)c->cols)
             bput(&b, '-');
-        line_end(c, &b, rule_row(c), true, 0u, 0u);
+        line_end(c, &b, rule_row(c), true, true, 0u);
     }
 
     if (row_ok(c, footer_row(c)))
@@ -595,7 +608,7 @@ void paint_chrome(atc_menu_ctx_t *c)
         line_begin(c, &b, msg_row(c), SGR_HINT);
         if (c->msg != NULL)
             bclip(&b, c->msg, (size_t)c->cols);
-        line_end(c, &b, msg_row(c), true, 0u, 0u);
+        line_end(c, &b, msg_row(c), true, true, 0u);
     }
 
     if (row_ok(c, prompt_row(c))) {
@@ -616,7 +629,7 @@ void paint_chrome(atc_menu_ctx_t *c)
                 bu32(&b, c->pending);
         }
         bput(&b, '_');
-        line_end(c, &b, prompt_row(c), true, 0u, 0u);
+        line_end(c, &b, prompt_row(c), true, true, 0u);
     }
 }
 
@@ -630,6 +643,6 @@ void blank_tail(atc_menu_ctx_t *c)
         if (!row_ok(c, r))
             break;
         line_begin(c, &b, r, "");
-        line_end(c, &b, r, false, 0u, 0u);
+        line_end(c, &b, r, false, true, 0u);
     }
 }

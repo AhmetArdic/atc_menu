@@ -569,7 +569,7 @@
             <mxGeometry height="73" width="301" x="49" y="438" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="&lt;b&gt;line_begin&lt;/b&gt;&#xa;imleç konumu · reset · zebra" mermaidId="n:E2" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="&lt;b&gt;line_begin&lt;/b&gt;&#xa;imleç konumu · reset · zebra" id="47">
+        <UserObject label="&lt;b&gt;line_begin&lt;/b&gt;&#xa;imleç konumu · reset · satırı sil · zebra" mermaidId="n:E2" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="&lt;b&gt;line_begin&lt;/b&gt;&#xa;imleç konumu · reset · satırı sil · zebra" id="47">
           <mxCell parent="43" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="73" width="263" x="68" y="596" as="geometry" />
           </mxCell>
@@ -584,12 +584,12 @@
             <mxGeometry height="73" width="275" x="62" y="979" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="etiket, etiket sütununa kırpılır · dolgu&#xa;&lt;b&gt;bvalue_sgr&lt;/b&gt; · değer" mermaidId="n:E5" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="etiket, etiket sütununa kırpılır · dolgu&#xa;&lt;b&gt;bvalue_sgr&lt;/b&gt; · değer" id="50">
+        <UserObject label="etiket, etiket sütununa kırpılır · &lt;b&gt;bskip&lt;/b&gt;&#xa;&lt;i&gt;boş sütunlar: imleç sıçraması, REP, ya da boşluk&lt;/i&gt;&#xa;&lt;b&gt;bvalue_sgr&lt;/b&gt; · değer · çizgiliyse kenara kadar bskip" mermaidId="n:E5" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="etiket, etiket sütununa kırpılır · &lt;b&gt;bskip&lt;/b&gt;&#xa;&lt;i&gt;boş sütunlar: imleç sıçraması, REP, ya da boşluk&lt;/i&gt;&#xa;&lt;b&gt;bvalue_sgr&lt;/b&gt; · değer · çizgiliyse kenara kadar bskip" id="50">
           <mxCell parent="43" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="73" width="318" x="40" y="1232" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="&lt;b&gt;line_end&lt;/b&gt;&#xa;çizgili ise cols&#39;a doldur,&#xa;değilse sondaki boşlukları at&#xa;reset · satır sonunu sil" mermaidId="n:E6" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="&lt;b&gt;line_end&lt;/b&gt;&#xa;çizgili ise cols&#39;a doldur,&#xa;değilse sondaki boşlukları at&#xa;reset · satır sonunu sil" id="51">
+        <UserObject label="&lt;b&gt;line_end&lt;/b&gt;&#xa;sondaki boşlukları at · reset" mermaidId="n:E6" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="&lt;b&gt;line_end&lt;/b&gt;&#xa;sondaki boşlukları at · reset" id="51">
           <mxCell parent="43" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="112" width="261" x="69" y="1365" as="geometry" />
           </mxCell>

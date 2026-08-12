@@ -12,27 +12,22 @@
  *   menu_widget.c  what the application declares, frame by frame
  *   menu_core.c    the context's life: init, terminal, frame, teardown
  *
- * Whatever one file owns stays static inside it, so what is declared here is
- * the whole of what the pieces say to each other, and none of it is installed.
- * The atc_menu_ prefix is left to the API: a name without it is a name no
- * application is meant to reach for.
+ * Whatever one file owns stays static inside it, so this is the whole of what
+ * the pieces say to each other. The atc_menu_ prefix is left to the API.
  */
 #ifndef MENU_INTERNAL_H
 #define MENU_INTERNAL_H
 
 #include "atc_menu/menu.h"
 
-/*---------------------------------------------------------------------------
- * Layout
- *-------------------------------------------------------------------------*/
+/*--- Layout -----------------------------------------------------------------*/
 
 #define NUMW 7u  /* "   1   " */
 #define VALW 12u /* widest formatted value: -214748.3648 */
 
 /* Most the chrome can spend: banner (2) + rule + breadcrumb + closing rule +
-   footer + message + prompt. An empty banner line is not painted and not
-   charged, so the real cost is 6, 7 or 8 — measure_head() has the exact figure.
-   Only the floor atc_menu_init() enforces needs the worst case. */
+   footer + message + prompt. The real cost is 6, 7 or 8 and measure_head() has
+   it; only the floor atc_menu_init() enforces needs the worst case. */
 #define CHROME_ROWS 8u
 
 /*---------------------------------------------------------------------------
@@ -41,20 +36,16 @@
  *   [ one row ][ editor title \0 ][ keystrokes \0 ]
  *              ^ edit_area        ^ edit_head
  *
- * Nothing but arithmetic on cols, buf_cap and edit_head, so it is here rather
- * than behind a call: menu_draw.c wants the first part, menu_edit.c the rest,
- * and neither should be asking the other where the line is.
+ * Nothing but arithmetic on cols, buf_cap and edit_head: menu_draw.c wants the
+ * first part and menu_edit.c the rest.
  *-------------------------------------------------------------------------*/
 
-/* Bounding a row is what keeps the two halves apart, and the split needs no
-   field of its own: cols already says where it is. */
 static inline size_t row_cap(const atc_menu_ctx_t *c)
 {
     return ATC_MENU_ROW_BYTES(c->cols);
 }
 
-/* Whatever the caller passed beyond one row. atc_menu_init() has already
-   refused anything smaller than ATC_MENU_BUF_BYTES(cols). */
+/* atc_menu_init() has already refused less than ATC_MENU_BUF_BYTES(cols). */
 static inline size_t edit_room(const atc_menu_ctx_t *c)
 {
     return c->buf_cap - row_cap(c);
@@ -80,16 +71,13 @@ static inline const char *edit_text_c(const atc_menu_ctx_t *c)
     return edit_area_c(c) + c->edit_head;
 }
 
-/* The title is fixed once the editor opens, so what is left is what can be
-   typed — a short label simply buys room. */
+/* the title is fixed once the editor opens, so the rest is typing room */
 static inline unsigned text_room(const atc_menu_ctx_t *c)
 {
     return (unsigned)(edit_room(c) - c->edit_head - 1u);
 }
 
-/*---------------------------------------------------------------------------
- * Context flags
- *-------------------------------------------------------------------------*/
+/*--- Context flags ----------------------------------------------------------*/
 
 #define F_EDIT    0x0001u
 #define F_COMMIT  0x0002u
@@ -99,29 +87,27 @@ static inline unsigned text_room(const atc_menu_ctx_t *c)
 #define F_STOP    0x0020u
 #define F_OVF     0x0040u
 #define F_TEXT    0x0080u
-/* A value left this frame and the application has not answered yet: the editor
-   state is still whole, so atc_menu_reject() can put it back on screen. */
+/* A value left this frame and is unanswered; the editor state is still whole,
+   so atc_menu_reject() can put it back. */
 #define F_DELIVERED 0x0100u
 #define F_CHOICE    0x0200u
-/* atc_menu_static_labels(): the caller's promise that a label's address is as
-   good as its text. Not cleared by a frame — it is a property of the menu. */
+/* atc_menu_static_labels(): a label's address is as good as its text */
 #define F_LABEL_PTR 0x0400u
+/* atc_menu_fast_fill(): the terminal repeats a character on demand */
+#define F_FAST_FILL 0x0800u
 
-/* F_TEXT and F_CHOICE say which editor F_EDIT means; they outlive it by design,
-   since a delivered value keeps its kind until frame_end retires it. */
+/* Which editor F_EDIT means. They outlive it: a delivered value keeps its kind
+   until frame_end retires it. */
 #define F_EDIT_KIND (F_TEXT | F_CHOICE)
 
 /* edit_frac when no decimal point has been typed. */
 #define NO_FRAC 0xFFu
 
-/* Numbers run 1..247, and an item scrolled off the page reports 0 — which is
-   why 0 cannot stand for the items-per-page editor: an off-page widget would
-   answer its commit and write the typed value into the application. */
+/* Not 0: an item scrolled off the page reports 0 too, and would answer this
+   editor's commit by writing the typed value into the application. */
 #define EDIT_PAGE 0xFFu
 
-/*---------------------------------------------------------------------------
- * menu_buf.c — a line, built straight into the caller's buffer
- *-------------------------------------------------------------------------*/
+/*--- menu_buf.c — a line, built straight into the caller's buffer -----------*/
 
 /* len keeps counting past cap, so an overflow is detectable without ever
    writing out of bounds. */
@@ -132,10 +118,10 @@ typedef struct {
     size_t body; /* offset where the content after the ANSI prefix starts */
     size_t sig;  /* offset the signature starts at: past the cursor address */
     size_t vis;  /* columns written; escape sequences do not count */
+    bool   solid; /* the row wears an attribute that shows in an empty cell */
 } buf_t;
 
-/* Every byte of every row goes through this one, which is why it is here and
-   not behind a call: the call would cost more than the body does. */
+/* every byte of every row goes through here, so the call would cost more */
 static inline void bput(buf_t *b, char ch)
 {
     if (b->len < b->cap)
@@ -152,9 +138,8 @@ void bu32(buf_t *b, uint32_t v);
 void bnum(buf_t *b, uint32_t mag, bool neg, unsigned decimals);
 void bhexdigits(buf_t *b, uint32_t v, unsigned digits);
 
-/* A value's magnitude and sign travel separately from the widget all the way to
-   bnum, so the most negative int32_t keeps its magnitude instead of
-   overflowing on the way. */
+/* Magnitude and sign travel separately all the way to bnum, so the most
+   negative int32_t does not overflow on the way. */
 static inline uint32_t magnitude(int32_t v)
 {
     return (v < 0) ? (uint32_t)0u - (uint32_t)v : (uint32_t)v;
@@ -164,13 +149,11 @@ static inline uint32_t magnitude(int32_t v)
  * menu_draw.c — where a row goes and what it looks like
  *
  * Item rows are addressed by declaration index, not by screen row: the page
- * offset and the chrome above it are the drawing side's business, so no caller
- * has to know how tall the banner came out.
+ * offset and the chrome above it are the drawing side's business.
  *-------------------------------------------------------------------------*/
 
-/* What one declared row is, from the place it takes to the bytes it becomes.
-   Passed rather than eight loose arguments, half of which a 16-bit MCU would
-   put on the stack twice — once to sign the row, once to paint it. */
+/* One declared row. Passed rather than eight loose arguments, half of which a
+   16-bit MCU would stack twice: once to sign the row, once to paint it. */
 typedef struct {
     unsigned char item_i;
     unsigned char num;   /* 0 when off the page, or when the row takes no number */
@@ -184,8 +167,8 @@ typedef struct {
 unsigned page_items_max(const atc_menu_ctx_t *c);
 void measure_head(atc_menu_ctx_t *c);
 
-/* Rotate and add, the whole of the signature: three instructions on a 16-bit
-   MCU, against the thirteen Fletcher's two mod-255 folds cost. */
+/* The whole of the signature: three instructions on a 16-bit MCU, against the
+   thirteen Fletcher's two mod-255 folds cost. */
 static inline uint16_t sig_mix(uint16_t sig, uint16_t v)
 {
     return (uint16_t)((uint16_t)((sig << 1) | (sig >> 15)) + v);
@@ -202,9 +185,7 @@ void paint_chrome(atc_menu_ctx_t *c);
 void blank_tail(atc_menu_ctx_t *c);
 void restore_cursor(atc_menu_ctx_t *c);
 
-/*---------------------------------------------------------------------------
- * menu_edit.c — the editor's state and its slice of the caller's buffer
- *-------------------------------------------------------------------------*/
+/*--- menu_edit.c — the editor's state and its slice of the buffer ----------*/
 
 void set_edit_title(atc_menu_ctx_t *c, const char *label, const char *value);
 

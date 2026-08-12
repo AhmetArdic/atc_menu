@@ -3,19 +3,15 @@
  * @file menu_core.c
  * @brief The context's life: init, terminal, frame, teardown
  *
- * A frame is opened, the application declares its items into it, and
- * atc_menu_frame_end() is where everything deferred lands: the chrome is
- * painted once the level's height is known, rows the level no longer fills are
- * blanked, a submenu that was selected is entered, and a delivered value is
- * retired now that the application has had its chance to refuse it.
+ * atc_menu_frame_end() is where everything deferred lands: the chrome, once
+ * the level's height is known; the rows the level no longer fills; a selected
+ * submenu; and the value a widget delivered, now refusable no longer.
  */
 #include "menu_internal.h"
 
 #include <string.h>
 
-/*---------------------------------------------------------------------------
- * Binding a context to a screen
- *-------------------------------------------------------------------------*/
+/*--- Binding a context to a screen ------------------------------------------*/
 
 atc_menu_status_t atc_menu_init(atc_menu_ctx_t *c, const atc_menu_info_t *info,
                                 const atc_menu_screen_t *screen,
@@ -49,8 +45,6 @@ atc_menu_status_t atc_menu_init(atc_menu_ctx_t *c, const atc_menu_info_t *info,
     return ATC_MENU_OK;
 }
 
-/* frame_end blanks whatever the level no longer fills, so nothing here has to
-   touch the screen. */
 void atc_menu_set_items_per_page(atc_menu_ctx_t *c, unsigned n)
 {
     if (c == NULL || c->rows == 0u)
@@ -89,12 +83,21 @@ void atc_menu_static_labels(atc_menu_ctx_t *c, bool on)
     atc_menu_refresh(c);
 }
 
-/*---------------------------------------------------------------------------
- * The terminal around it
- *-------------------------------------------------------------------------*/
+/* What is on screen was painted under the old rule, so it goes again. */
+void atc_menu_fast_fill(atc_menu_ctx_t *c, bool on)
+{
+    if (c == NULL)
+        return;
+    if (on)
+        c->flags |= F_FAST_FILL;
+    else
+        c->flags &= (uint16_t)~F_FAST_FILL;
+    atc_menu_refresh(c);
+}
 
-/* Erase and absolute placement are VT100; ESC[?25l is VT220 and up, and is the
-   one sequence here a real VT100 would ignore. No alternate screen, no
+/*--- The terminal around it -------------------------------------------------*/
+
+/* All VT100 but ESC[?25l, which a real one ignores. No alternate screen, no
    scrolling region. */
 atc_menu_status_t atc_menu_term_begin(atc_menu_ctx_t *c)
 {
@@ -115,11 +118,9 @@ atc_menu_status_t atc_menu_term_end(atc_menu_ctx_t *c)
     if (c == NULL || c->sink == NULL)
         return ATC_MENU_ERR_PARAM;
 
-    /* The row half, not the whole buffer: the tail behind it belongs to an open
-       editor, and a sequence that outgrew its room should be refused rather
-       than written over the keystrokes. */
+    /* the row half only: the tail behind it belongs to an open editor */
     b.p = c->buf; b.cap = row_cap(c); b.len = 0u; b.body = 0u; b.sig = 0u;
-    b.vis = 0u;
+    b.vis = 0u; b.solid = false;
     bstr(&b, "\x1b[0m\x1b[?25h\x1b[");
     bu32(&b, c->rows); /* the bottom of the window the menu was given */
     bstr(&b, ";1H");
@@ -129,9 +130,7 @@ atc_menu_status_t atc_menu_term_end(atc_menu_ctx_t *c)
     return (c->sink(b.p, b.len, c->user) == 1) ? ATC_MENU_OK : ATC_MENU_ERR_IO;
 }
 
-/*---------------------------------------------------------------------------
- * State an application can set between frames
- *-------------------------------------------------------------------------*/
+/*--- State an application can set between frames ----------------------------*/
 
 void atc_menu_reset(atc_menu_ctx_t *c)
 {
@@ -174,9 +173,7 @@ void atc_menu_item_style(atc_menu_ctx_t *c, unsigned flags)
         c->item_style = (unsigned char)(flags & 0xFFu);
 }
 
-/*---------------------------------------------------------------------------
- * The frame
- *-------------------------------------------------------------------------*/
+/*--- The frame --------------------------------------------------------------*/
 
 atc_menu_status_t atc_menu_frame_begin(atc_menu_ctx_t *c)
 {
@@ -206,9 +203,8 @@ atc_menu_status_t atc_menu_frame_end(atc_menu_ctx_t *c)
         c->status = (signed char)ATC_MENU_ERR_STATE;
     }
 
-    /* The application had this frame to answer the value a widget delivered;
-       past here the editor is retired and atc_menu_reject() has nothing to
-       reopen, which is what confines it to the frame that saw the value. */
+    /* The frame the application had to answer a delivered value ends here, and
+       with it atc_menu_reject()'s chance to reopen the editor. */
     c->flags &= (uint16_t)~F_DELIVERED;
 
     /* the level may have shrunk since this page was chosen */
@@ -225,8 +221,7 @@ atc_menu_status_t atc_menu_frame_end(atc_menu_ctx_t *c)
         shown = c->page_items;
     c->shown_items = (unsigned char)shown; /* where the closing rule goes */
 
-    /* One signature over what the chrome is drawn from: unchanged, none of its
-       seven rows is laid out. */
+    /* one signature over all seven chrome rows */
     if ((c->flags & F_EDIT) != 0u) {
         c->chrome_sig = 0u; /* the prompt moves with every keystroke */
         paint_chrome(c);
@@ -243,7 +238,7 @@ atc_menu_status_t atc_menu_frame_end(atc_menu_ctx_t *c)
     }
 
     /* The rows above were laid out with the old page size, so the new one takes
-       effect from the next frame — the deferral submenu entry uses below. */
+       effect next frame. */
     if ((c->flags & (F_EDIT | F_COMMIT)) == (F_EDIT | F_COMMIT) &&
         c->edit_item == EDIT_PAGE) {
         uint32_t n = c->acc;

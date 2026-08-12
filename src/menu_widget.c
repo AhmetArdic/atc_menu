@@ -3,11 +3,9 @@
  * @file menu_widget.c
  * @brief What the application declares, frame by frame
  *
- * Every entry an application can put on screen takes a slot: it gets the next
- * declaration index, a number if it is on this page, a row if anything it is
- * drawn from moved, and an answer to whether the key just pressed picked it.
- * Everything below that is the difference between one kind of value and
- * another.
+ * Every entry takes a slot: the next declaration index, a number if it is on
+ * this page, a row if anything it is drawn from moved, and an answer to whether
+ * the key just pressed picked it. The rest is one value kind against another.
  *
  * Immediate mode: nothing is retained between frames but the editor, so a
  * label, a value string or a choice list need only stay valid for the call.
@@ -16,9 +14,7 @@
 
 #include <string.h>
 
-/*---------------------------------------------------------------------------
- * The slot every item takes
- *-------------------------------------------------------------------------*/
+/*--- The slot every item takes ----------------------------------------------*/
 
 static bool at_active(const atc_menu_ctx_t *c)
 {
@@ -29,8 +25,7 @@ static unsigned next_index(atc_menu_ctx_t *c)
 {
     unsigned i = c->item[c->decl_depth];
 
-    /* The count is one byte, so it has to stop before it wraps and two rows
-       start sharing a number. */
+    /* one byte, so it stops before two rows start sharing a number */
     if (i < 254u)
         c->item[c->decl_depth] = (unsigned char)(i + 1u);
     else
@@ -38,8 +33,8 @@ static unsigned next_index(atc_menu_ctx_t *c)
     return i;
 }
 
-/* Both are spent by the next item declared, on the active level or not:
-   otherwise one set at the root survives into the first row of a submenu. */
+/* Spent by the next item declared, active level or not: otherwise one set at
+   the root survives into a submenu's first row. */
 static bool take_disable(atc_menu_ctx_t *c)
 {
     bool d = (c->flags & F_DISABLE) != 0u;
@@ -61,9 +56,8 @@ static bool on_page(const atc_menu_ctx_t *c, unsigned item_i)
     return item_i >= top && item_i < top + c->page_items;
 }
 
-/* A declared row in three steps: slot_take reserves its place, row_sign says
-   whether anything it is drawn from moved, and only then is a value turned into
-   text. Numbers are per page and start again at 1 on the next one. */
+/* Three steps: reserve the place, ask whether anything it is drawn from moved,
+   and only then turn a value into text. Numbers are per page. */
 static void slot_take(atc_menu_ctx_t *c, slot_t *s, bool numbered)
 {
     unsigned i = next_index(c);
@@ -84,7 +78,7 @@ static void slot_take(atc_menu_ctx_t *c, slot_t *s, bool numbered)
     if (!on_page(c, i))
         return;
 
-    s->page = true; /* on screen, so worth a key — and worth making one from */
+    s->page = true; /* on screen, so worth a key */
     if (numbered) {
         c->level_numbered = (unsigned char)(c->level_numbered + 1u);
         s->num = c->level_numbered;
@@ -103,8 +97,7 @@ static bool slot_hit(atc_menu_ctx_t *c, const slot_t *s, bool selectable)
     return selectable && s->num != 0u && c->act == s->num;
 }
 
-/* The form for a row whose value is already text; vkey 0 asks for it to be
-   signed, anything else stands in for it. */
+/* A row whose value is already text; vkey 0 asks for it to be signed. */
 static bool item_slot(atc_menu_ctx_t *c, const char *label, const char *value,
                       uint16_t vkey, bool numbered, bool selectable,
                       unsigned *out_num)
@@ -125,9 +118,7 @@ static bool item_slot(atc_menu_ctx_t *c, const char *label, const char *value,
 #define VKEY_FALSE 0x5832u
 #define VKEY_SUB   0x5833u
 
-/*---------------------------------------------------------------------------
- * Decoration
- *-------------------------------------------------------------------------*/
+/*--- Decoration -------------------------------------------------------------*/
 
 void atc_menu_label(atc_menu_ctx_t *c, const char *text)
 {
@@ -285,9 +276,8 @@ static void num_ro(atc_menu_ctx_t *c, const char *label, uint32_t mag, bool neg,
     (void)slot_hit(c, &slot, false); /* answers 'read-only' when picked */
 }
 
-/* num_item() writes through the two pointers only when it returns true, so the
-   zeros are never read — they are here because a compiler that inlines the call
-   cannot always see that for itself. */
+/* Never read: num_item() writes through both only when it returns true. Here
+   because an inlining compiler cannot always see that. */
 static bool num_edit_u(atc_menu_ctx_t *c, const char *label, uint32_t cur,
                        const numspec_t *s, uint32_t *out)
 {
@@ -318,9 +308,7 @@ static bool num_edit_i(atc_menu_ctx_t *c, const char *label, int32_t cur,
     return true;
 }
 
-/*---------------------------------------------------------------------------
- * Read-only rows
- *-------------------------------------------------------------------------*/
+/*--- Read-only rows ---------------------------------------------------------*/
 
 void atc_menu_uint8_ro(atc_menu_ctx_t *c, const char *label, atc_menu_u8 v)
 {
@@ -382,9 +370,7 @@ void atc_menu_text_ro(atc_menu_ctx_t *c, const char *label, const char *text)
         (void)item_slot(c, label, text, 0u, true, false, NULL);
 }
 
-/*---------------------------------------------------------------------------
- * Editable rows
- *-------------------------------------------------------------------------*/
+/*--- Editable rows ----------------------------------------------------------*/
 
 bool atc_menu_uint8(atc_menu_ctx_t *c, const char *label, atc_menu_u8 *v)
 {
@@ -501,7 +487,7 @@ bool atc_menu_text(atc_menu_ctx_t *c, const char *label, char *buf, size_t cap)
     if (c == NULL || buf == NULL || cap == 0u)
         return false;
 
-    /* level_numbered has not counted this item yet, so its number is level_numbered + 1 */
+    /* level_numbered has not counted this item yet, so its number is one more */
     if (at_active(c) && (c->flags & (F_EDIT | F_TEXT)) == (F_EDIT | F_TEXT) &&
         c->edit_item == (unsigned)c->level_numbered + 1u)
         shown = edit_text_c(c);
@@ -564,9 +550,7 @@ bool atc_menu_action(atc_menu_ctx_t *c, const char *label)
     return item_slot(c, label, NULL, 0u, true, true, NULL);
 }
 
-/*---------------------------------------------------------------------------
- * Levels
- *-------------------------------------------------------------------------*/
+/*--- Levels -----------------------------------------------------------------*/
 
 bool atc_menu_submenu(atc_menu_ctx_t *c, const char *label)
 {

@@ -155,13 +155,22 @@ so an unchanged row is recognised without being laid out and an unchanged
 number is never even formatted. Each of those goes in whole, a rotate and an
 add; only the label is walked. The seven chrome rows go the same way under one
 signature, except while an editor is open. That is why an idle frame sends
-nothing and one changed row costs 128 bytes instead of a page.
+nothing and one changed row costs 60 bytes instead of a page.
 
 Reading every label back is then what an idle frame mostly spends itself on.
 `atc_menu_static_labels(c, true)` says they never move — literals, or any
 string that is never rewritten — and their addresses stand in for their text.
 A label built with `sprintf` into one scratch buffer breaks that promise: the
 address holds still while the text changes, and the row goes stale until `r`.
+
+Most of what a row still weighs is the gap between label and value. The line is
+cleared on the way in rather than on the way out, so what the row does not write
+is known to be blank and the gap is a cursor move — six bytes instead of sixty.
+A gap under a stripe or an underline does have to be cells, and those are the
+rows that stay expensive: `atc_menu_fast_fill(c, true)` says the terminal can
+repeat a character, and one goes out in 72 bytes rather than 129. That is
+ECMA-48 REP: xterm and the VTE terminals have it, `screen` and `tmux` do not,
+which is why it is off by default.
 
 `rows` is the terminal, not the menu: 6 to 8 rows go to the chrome (a banner
 line with nothing in it is not painted and not charged) and the items get the
@@ -192,10 +201,10 @@ Caller-owned except the context. Measured with 32-bit pointers, 80×24:
 
 | RAM | Bytes | | Flash, `gcc -Os -m32`, `.text` | Bytes |
 |---|---|---|---|---|
-| `atc_menu_ctx_t` | 100 | | whole library | 12 860 |
-| `buf` | 198 | | a 12-row menu, `--gc-sections` | 10 229 |
+| `atc_menu_ctx_t` | 100 | | whole library | 13 280 |
+| `buf` | 198 | | a 12-row menu, `--gc-sections` | 10 597 |
 | `sig[24]` | 48 | | `.bss` + `.data` | 0 |
-| **total** | **346** | | peak stack, deepest widget path | 444 |
+| **total** | **346** | | peak stack, deepest widget path | 476 |
 
 Each widget is its own function, so a menu that never shows a hex value does not
 carry the hex formatter.
@@ -211,10 +220,11 @@ Byte-shaped values are `atc_menu_u8` (`unsigned char`), never `uint8_t`: a C2000
 has `CHAR_BIT == 16` and no `uint8_t` at all. A C2000 sink must mask each byte
 with `& 0xFF` on the way out.
 
-Everything the layout rests on is VT100 — `ESC[r;cH`, `ESC[K`, `ESC[2J`,
-`ESC 7` / `ESC 8`. Colour, the stripe and the hidden cursor are not, and are the
-part that degrades: a terminal without them shows a plainer menu of the same
-shape.
+Everything the layout rests on is VT100 — `ESC[r;cH`, `ESC[K`, `ESC[nC`,
+`ESC[2J`, `ESC 7` / `ESC 8`. Colour, the stripe and the hidden cursor are not,
+and are the part that degrades: a terminal without them shows a plainer menu of
+the same shape. `atc_menu_fast_fill` adds `ESC[nb` to that list and is the one
+thing that would misdraw rather than degrade, which is why it is opt-in.
 
 ## Build
 
@@ -232,8 +242,12 @@ both ends of a virtual line:
 ```sh
 socat -d -d pty,raw,echo=0,link=/tmp/ttyA pty,raw,echo=0,link=/tmp/ttyB &
 ./build/default/examples/basic/menu_demo /tmp/ttyA 115200 &
-screen /tmp/ttyB 115200
+picocom /tmp/ttyB -b 115200
 ```
+
+The demo turns `atc_menu_fast_fill` on, so it wants a terminal of its own rather
+than one emulated inside another: `picocom` hands the bytes to whatever you are
+sitting in, while `screen` and `tmux` interpret them first and have no REP.
 
 `docs/building-artifacts.md` covers packaging and the two ABI knobs;
 `docs/atc-menu-flow.drawio` is the flow, file by file.

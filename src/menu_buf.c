@@ -3,9 +3,9 @@
  * @file menu_buf.c
  * @brief Bytes and numbers into a line buffer
  *
- * Nothing here touches the context or the sink: a buf_t is a span and a cursor,
- * and every routine either fits inside cap or only advances len past it, which
- * is what lets the caller check for an overflow once, at the end of the line.
+ * Nothing here touches the context or the sink. Every routine either fits
+ * inside cap or only advances len past it, so the caller checks for an overflow
+ * once, at the end of the line.
  */
 #include "menu_internal.h"
 

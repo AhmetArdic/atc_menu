@@ -97,9 +97,10 @@ typedef struct {
 /**
  * @brief Bytes one painted row can take
  *
- * ESC[255;1H(8) + ESC[0m(4) + ESC[48;5;236m(11) + ESC[1;33m(7)
- * + ESC[22;39m(8) + ESC[1;3;4;7;31m(13) + cols + ESC[22;31m(8) + ESC[K(3)
- * + ESC[0m(4) + NUL(1).
+ * ESC[255;1H(8) + ESC[m(3) + ESC[K(3) + ESC[48;5;236m(11) + ESC[1;33m(7)
+ * + ESC[22;39m(8) + ESC[1;3;4;7;31m(13) + cols + ESC[22;31m(8) + ESC[m(3)
+ * + NUL(1). A gap's escape is only ever used when it is shorter than the
+ * spaces it replaces, so it cannot push a row past this.
  *
  * @param cols terminal width
  */
@@ -197,11 +198,8 @@ typedef struct {
     unsigned char item_style;
 } atc_menu_ctx_t;
 
-/* Measured: 100 bytes with 32-bit pointers, 152 on a 64-bit host. The editor
-   scratch lives in the caller's buffer, not here, which is what keeps this
-   below what it cost when it held one. Gated on an 8-bit byte, since a C2000
-   counts this struct in 16-bit words and the same budget would be a different
-   number there. */
+/* Measured: 100 bytes with 32-bit pointers, 152 on a 64-bit host. Gated on an
+   8-bit byte: a C2000 counts this struct in 16-bit words. */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && CHAR_BIT == 8
 _Static_assert(sizeof(atc_menu_ctx_t) <= 160u, "atc_menu_ctx_t grew past its budget");
 #endif
@@ -296,6 +294,20 @@ void atc_menu_refresh(atc_menu_ctx_t *c);
  * @param on true to key labels by address
  */
 void atc_menu_static_labels(atc_menu_ctx_t *c, bool on);
+
+/**
+ * @brief Fill a run of columns with an escape instead of with spaces
+ *
+ * The gap between label and value is most of what a painted row weighs. Where
+ * it wears a stripe or an underline it has to be real cells; a terminal that
+ * can repeat a character (ECMA-48 REP, `ESC[nb`) lays them down in seven bytes
+ * instead of sixty. Off by default: xterm and the VTE terminals have it,
+ * `screen` and `tmux` do not, and without it the row is drawn short.
+ *
+ * @param c  the context; NULL is ignored
+ * @param on true if the terminal repeats characters
+ */
+void atc_menu_fast_fill(atc_menu_ctx_t *c, bool on);
 
 /**
  * @brief Return to the root level
